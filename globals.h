@@ -1,2 +1,8 @@
-int SCREEN_WIDTH = 1024;//800;
-int SCREEN_HEIGHT = 768;//600;
+int SCREEN_WIDTH = 1920;//800;
+int SCREEN_HEIGHT = 1050;//600;
+int LEADER_WIDTH = 435;
+int HISCORE_WIDTH = 435;
+int HI_X_OFFSET = 1485;
+int BANNER_HEIGHT = 75;
+int SCREEN_BPP = 32;				// Bits per pixel
+
