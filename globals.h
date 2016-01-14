@@ -1,0 +1,2 @@
+int SCREEN_WIDTH = 1024;//800;
+int SCREEN_HEIGHT = 768;//600;
