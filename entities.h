@@ -72,6 +72,10 @@ class Tadpole
     // Health of the Tadpole
     int hpoints;
 
+    // Alive state
+    bool alive;
+    bool justborn;
+    
     // The are of the Tadpole
     Circle c;
 
@@ -81,9 +85,17 @@ class Tadpole
     // The acceleration flags
     int xflag, yflag;
 
-    // Initializes the variables
-    Tadpole(int X, int Y);
+    // Age clock
+    Timer age_clock;
 
+    // Initializes the variables
+    Tadpole();
+
+    // Spawn
+    void spawn();
+
+    void kill();
+	      
     // Tkes key presses and adjusts the Tadpole's velocity
     void handle_input();
 
@@ -95,19 +107,20 @@ class Tadpole
 };
 
 
-Tadpole::Tadpole(int X, int Y)
+Tadpole::Tadpole()
 {
     // Initialize sprite markers
     angl = 4;
     ud = 0;
     tadswim = 0;
 
-    // Make alive
-    hpoints = 12;
+    hpoints = 0;
+    alive = false;
+    justborn = false;
 
     // Initialize the offsets
-    c.x = X;
-    c.y = Y;
+    c.x = SCREEN_WIDTH/2;
+    c.y = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
     c.r = 10;
 
     // Initialize the velocity
@@ -117,6 +130,45 @@ Tadpole::Tadpole(int X, int Y)
     // Initialize acceleration flags
     xflag = 0;
     yflag = 0;
+
+}
+
+void Tadpole::spawn()
+{
+  // Make alive
+  hpoints = 10;
+  alive = true;
+  justborn = true;
+
+  // Start age clock
+  age_clock.start();  
+}
+
+void Tadpole::kill()
+{
+  // Initialize sprite markers
+  angl = 4;
+  ud = 0;
+  tadswim = 0;
+
+  hpoints = 0;
+  alive = false;
+
+  // Initialize the offsets
+  c.x = SCREEN_WIDTH/2;
+  c.y = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
+  c.r = 10;
+
+  // Initialize the velocity
+  xVel = 0;
+  yVel = 0;
+
+  // Initialize acceleration flags
+  xflag = 0;
+  yflag = 0;
+
+  // stop age clock
+  age_clock.stop();
 }
 
 void Tadpole::handle_input()
@@ -315,7 +367,9 @@ void Tadpole::move(int swim)
 void Tadpole::show()
 {
     // Show the Tadpole
+  if (alive) {
     apply_surface( c.x - c.r, c.y - c.r, player1, screen, &tadclip[angl][ud] );
+  }
 }
 
 
@@ -367,7 +421,7 @@ class Frog
     // Initializes the variables
     void Frog_set(int X, int Y, int sp, int a_i);
 
-    void handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspawn, int sp);
+    void handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspawn, int sp, bool liveTads);
 
     // Moves the Frog
     void move();
@@ -419,9 +473,9 @@ void Frog::Frog_set(int X, int Y, int sp, int a_i)
 }
 
 
-void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspawn, int sp)
+void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspawn, int sp, bool liveTads)
 {
-    if(jumpstate == 1 )
+  if((jumpstate == 1) || (jumpstate == 3) )
     {
 	jumpstate = 2;
 	xflag = 0;
@@ -430,6 +484,7 @@ void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspaw
 
 #ifdef WITH_SOUND
 
+	if (jumpstate == 1) {
 	if(speed > sp)
  	    Mix_PlayChannel(-1, warp, 0);
 	else
@@ -440,7 +495,7 @@ void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspaw
 	    case 1: Mix_PlayChannel(-1, launch2, 0); break;
 	}
 	}
-
+	}
 #endif
 
     }
@@ -458,6 +513,10 @@ void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspaw
 	    if(Y < BANNER_HEIGHT) Y = c.r + BANNER_HEIGHT;
 	    if(Y > SCREEN_HEIGHT) Y = SCREEN_HEIGHT - c.r;
 	    dist = distance(X, Y, c.x, c.y);
+	    if(!liveTads) {
+	      //	      X = SCREEN_WIDTH/2; Y = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
+	      X = c.x; Y = c.y;
+	    }
 	    if(fspawn == 1 && dist > distance(Xf, Yf, c.x, c.y))
 	    {
 		X = Xf;
@@ -468,6 +527,9 @@ void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspaw
 	}
 	xflag = (X - c.x);
 	yflag = (Y - c.y);
+	if ((xflag == 0) && (yflag == 0)) {
+	  jumpstate = 3;
+	}
     }
 }
 

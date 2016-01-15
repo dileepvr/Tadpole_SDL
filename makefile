@@ -20,7 +20,7 @@ $(EXECUTABLE): main.o
 	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(LIBDIR) $(LIBRARIES)\
 	main.o 
 
-main.o: main.cpp 
+main.o: main.cpp
 	$(CC) -c main.cpp
 
 check: tadpole

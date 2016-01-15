@@ -19,8 +19,8 @@
 #include "tadclips.h"		// Storing sprite frames
 
 
-int SCREEN_WIDTH = 1680; int SCREEN_HEIGHT = 1020;
-//int SCREEN_WIDTH = 1920; int SCREEN_HEIGHT = 1050;
+//int SCREEN_WIDTH = 1680; int SCREEN_HEIGHT = 1020;
+int SCREEN_WIDTH = 1920; int SCREEN_HEIGHT = 1030;
 int LEADER_WIDTH = (int)(0.2265625*SCREEN_WIDTH);//435;
 int HISCORE_WIDTH = LEADER_WIDTH;
 int HI_X_OFFSET = (int)(0.773475*SCREEN_WIDTH);//1245;
@@ -297,7 +297,8 @@ int main(int argc, char* argv[]) {
   if (load_files() == false) return 1;
 
   // Spawn Tadpole
-  Tadpole myTad(mmtadx, mmtady);
+  Tadpole myTad;
+
 
   // Spawn fly
   xfly = 10+drand48()*(SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH-20)+LEADER_WIDTH;
@@ -352,9 +353,14 @@ int main(int argc, char* argv[]) {
 	if(event.key.keysym.sym == SDLK_ESCAPE) {
 	  running = false;
 	}
+	if(event.key.keysym.sym == SDLK_RETURN) {
+	  if(!myTad.alive) {
+	    myTad.spawn();
+	  }
+	}
       }
 
-      myTad.handle_input();
+      if(myTad.alive) { myTad.handle_input(); }
       
       if(event.type == SDL_QUIT) running = false;
       
@@ -382,19 +388,19 @@ int main(int argc, char* argv[]) {
       if(a_i == 3) {
 	if(nherd[i] > 1) {
 	  if(nflychasers >= 2) {
-	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp);
+	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp,myTad.alive);
 	  } else{
-	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
 	  }
 	} else {
 	  if(nflychasers >= 2) {
-	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp);
+	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp,myTad.alive);
 	  } else {
-	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
 	  }
 	}
       } else {
-	myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+	myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
       }
     }
 
@@ -436,11 +442,13 @@ int main(int argc, char* argv[]) {
 	// ********************************* LOGIC *************************************** //
 
 
-    if( (lifespan.get_ticks() - tadswim) >= 50 ) {
-      tadswim = lifespan.get_ticks();
-      myTad.move(abs(myTad.xflag)+abs(myTad.yflag));
-    } else {
-      myTad.move(0);
+    if(myTad.alive) {
+      if( (lifespan.get_ticks() - tadswim) >= 50 ) {
+	tadswim = lifespan.get_ticks();
+	myTad.move(abs(myTad.xflag)+abs(myTad.yflag));
+      } else {
+	myTad.move(0);
+      }
     }
 
 
@@ -454,7 +462,7 @@ int main(int argc, char* argv[]) {
 
 
     for(i=0; i<nfrogs; i++) {
-      if(distance(myTad.c.x, myTad.c.y, myfrogs[i].c.x, myfrogs[i].c.y) <= myTad.c.r + myfrogs[i].c.r) {
+      if((distance(myTad.c.x, myTad.c.y, myfrogs[i].c.x, myfrogs[i].c.y) <= myTad.c.r + myfrogs[i].c.r)&& myTad.alive) {
 	suwaves[suwavenum][0] = -1;
 	suwaves[suwavenum][1] = myTad.c.x - 150;
 	suwaves[suwavenum][2] = myTad.c.y - 150;
@@ -475,7 +483,7 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    if(myTad.hpoints <= 10) { leech = lifespan.get_ticks();}
+    if(myTad.hpoints <= 10) { leech = lifespan.get_ticks(); }
 
     if( (lifespan.get_ticks() - leech) >= 5000 ) {
       leech = lifespan.get_ticks();
@@ -492,12 +500,13 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    if(tadchange == 1) {
+    // For spawning
+    if(myTad.justborn) {
       bigwaves[bwavenum][0] = -1;
       bigwaves[bwavenum][1] = myTad.c.x - 75;
       bigwaves[bwavenum][2] = myTad.c.y - 75;
       if(++bwavenum == 20) bwavenum = 0;
-      tadchange = 0;
+      myTad.justborn = false;
     }
 
     if(lifespan.get_ticks() - bwave_clk >= 36) {
@@ -531,16 +540,24 @@ int main(int argc, char* argv[]) {
     }
 
     
+    // Kill dead tadpoles
+    if(myTad.hpoints <= 0) {
+      myTad.kill();
+    }
+
+    
     // ************** DRAW STUFF ***********************//
     // Make screen white
   SDL_FillRect( screen, &screen->clip_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
     
 
+  if(myTad.alive) {
     for(j=0; j<10; j++){
       if(smallwaves[j][0] != 6){
 	apply_surface(smallwaves[j][1], smallwaves[j][2], waves_small, screen, &swaveclips[smallwaves[j][0]]);
       }
     }
+  }
 
     for(j=0; j<20; j++){
       if(bigwaves[j][0] != 24){
