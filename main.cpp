@@ -19,13 +19,15 @@
 #include "tadclips.h"		// Storing sprite frames
 
 
-int SCREEN_WIDTH = 1920;//800;
-int SCREEN_HEIGHT = 1050;//600;
-int LEADER_WIDTH = 435;
-int HISCORE_WIDTH = 435;
-int HI_X_OFFSET = 1485;
-int BANNER_HEIGHT = 75;
+int SCREEN_WIDTH = 1680; int SCREEN_HEIGHT = 1020;
+//int SCREEN_WIDTH = 1920; int SCREEN_HEIGHT = 1050;
+int LEADER_WIDTH = (int)(0.2265625*SCREEN_WIDTH);//435;
+int HISCORE_WIDTH = LEADER_WIDTH;
+int HI_X_OFFSET = (int)(0.773475*SCREEN_WIDTH);//1245;
+int BANNER_HEIGHT = (int)(0.03906*SCREEN_WIDTH);//75;
 int SCREEN_BPP = 32;		// Bits per pixel
+
+int txtoffset = (int)(HISCORE_WIDTH/20);
 
 int DOT_HEIGHT = 20;  		// Size of player
 int DOT_WIDTH = 20;
@@ -62,6 +64,7 @@ Mix_Chunk *slurp = NULL;
 
 TTF_Font *font = NULL;
 TTF_Font *regfont = NULL;
+TTF_Font *larfont = NULL;
 TTF_Font *bigfont = NULL;
 
 // Wave tracker [wave #] [frame/flag & coordinates]
@@ -137,9 +140,10 @@ bool load_files() {
     return false;
   }
 
-  font = TTF_OpenFont( "fonts/CARLETON.TTF", 17);
-  regfont = TTF_OpenFont( "fonts/CARLETON.TTF", 25);
-  bigfont = TTF_OpenFont( "fonts/STEVE.TTF", 50);
+  font = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.00885*SCREEN_WIDTH));//17
+  regfont = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.013*SCREEN_WIDTH));//25
+  larfont = TTF_OpenFont( "fonts/STEVE.TTF", (int)(0.8*0.026*SCREEN_WIDTH));//40  
+  bigfont = TTF_OpenFont( "fonts/STEVE.TTF", (int)(0.026*SCREEN_WIDTH));//50
 
   if ((font == NULL) || (bigfont == NULL)) {
     printf("error: ttf file not found\n");
@@ -202,7 +206,8 @@ void clean_up() {
 #endif
 
   TTF_CloseFont(font);
-  TTF_CloseFont(regfont);  
+  TTF_CloseFont(regfont);
+  TTF_CloseFont(larfont);  
   TTF_CloseFont(bigfont);
   TTF_Quit();
   
@@ -211,13 +216,9 @@ void clean_up() {
 }
 
 
-bool draw_screen() {
+bool draw_sidepanels() {
 
   Uint32 black_clr = SDL_MapRGB(screen->format, 0,0,0);
-  Uint32 white_clr = SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF);
-
-    // Make screen white
-  SDL_FillRect( screen, &screen->clip_rect, white_clr );
 
 
   SDL_FillRect(screen, &leader_rect, black_clr);
@@ -225,23 +226,22 @@ bool draw_screen() {
   SDL_FillRect(screen, &banner_rect, black_clr);
 
   message = TTF_RenderText_Solid(bigfont, "Leader Board", redcolor);
-  apply_surface(20, 20, message, screen, NULL);
+  apply_surface(txtoffset, txtoffset, message, screen, NULL);
 
   message = TTF_RenderText_Solid(bigfont, "Hi-Scores", redcolor);
-  apply_surface(HI_X_OFFSET+80, 20, message, screen, NULL);
+  apply_surface(HI_X_OFFSET+4*txtoffset, txtoffset, message, screen, NULL);
 
 
   message = TTF_RenderText_Solid(bigfont, "TO JOIN GAME:", redcolor);
-  apply_surface(LEADER_WIDTH+10, 20, message, screen, NULL);
+  apply_surface(LEADER_WIDTH+(int)(txtoffset/2), txtoffset, message, screen, NULL);
 
   message = TTF_RenderText_Solid(regfont, "TADPOLE_WIFI , THEN HTTP://TADPOLE", redcolor);
-  apply_surface(LEADER_WIDTH+460, 15, message, screen, NULL);
+  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(0.75*txtoffset), message, screen, NULL);
 
 
   message = TTF_RenderText_Solid(regfont, "APIs AVAILABLE: HTTP://TADPOLE/API", redcolor);
-  apply_surface(LEADER_WIDTH+460, 45, message, screen, NULL);
+  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(3*0.75*txtoffset), message, screen, NULL);
   
-  if(SDL_Flip(screen) == -1) return false;
   return true;
   
 }
@@ -261,9 +261,20 @@ int main(int argc, char* argv[]) {
   int bwavenum = 0, bwave_clk, mm_clk = 0, suwavenum = 0, suwave_clk = 0;  // various wave clocks and wave counters (storing latest wave to be animated)
 
   int pause = 0, nherd[10], nflychasers = 0; // nherd[i] counts number of close frogs to ith frog in jumpstate 0.
+  int tadflip = 0, mmtadx = SCREEN_WIDTH/2, mmtady = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
 
   float ran; // random number storing
+  char caption[32];
 
+
+
+  set_frogclips();
+  set_tadclips();
+  set_flyclips();
+  set_swaveclips();
+  set_bwaveclips();
+  set_suwaveclips();
+  
   Timer fps;  
   Timer lifespan;
   Timer flyspan;
@@ -285,6 +296,43 @@ int main(int argc, char* argv[]) {
 
   if (load_files() == false) return 1;
 
+  // Spawn Tadpole
+  Tadpole myTad(mmtadx, mmtady);
+
+  // Spawn fly
+  xfly = 10+drand48()*(SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH-20)+LEADER_WIDTH;
+  yfly = 10+drand48()*(SCREEN_HEIGHT-BANNER_HEIGHT-20) + BANNER_HEIGHT;
+  Fly myfly( xfly, yfly );
+
+  // Spawn Frogs
+  std::vector<Frog> myfrogs(nfrogs);
+
+
+  for(i = 0; i < nfrogs; i++ ) {
+    xfrog = drand48()*(SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH-20)+LEADER_WIDTH;
+    yfrog = drand48()*(SCREEN_HEIGHT-BANNER_HEIGHT-20) + BANNER_HEIGHT;
+    if(distance(xfrog, yfrog, mmtadx, mmtady) < (SCREEN_HEIGHT-BANNER_HEIGHT)/4) {
+      i--;
+    }
+    myfrogs[i].Frog_set(xfrog, yfrog, sp, a_i);
+  }
+
+
+  myTad.show();
+
+  for(i=0; i<nfrogs; i++)
+    myfrogs[i].show(sp);
+
+  myfly.show();
+
+
+  if(SDL_Flip(screen) == -1) return 1;
+
+  SDL_Delay(500);
+
+  lifespan.start();
+  
+  
 
 #ifdef WITH_SOUND
 //    if(Mix_PlayMusic(ambience, -1) == -1)
@@ -305,14 +353,223 @@ int main(int argc, char* argv[]) {
 	  running = false;
 	}
       }
+
+      myTad.handle_input();
+      
       if(event.type == SDL_QUIT) running = false;
       
     }
 
+    // ******************** STUFF ********************* //
+
+    if(a_i == 3) {
+      nflychasers = 0;
+      for(i=0; i<nfrogs; i++) {
+	if(myfrogs[i].jumpstate == 2){
+	  for(j=0; j<nfrogs; j++) {
+	    if(j!=i && myfrogs[j].jumpstate == 2 && distance(myfrogs[i].c.x, myfrogs[i].c.y, myfrogs[j].c.x, myfrogs[j].c.y) < 200)
+	      nherd[i]++;
+	  }
+	} else {
+	  nherd[i] = 0;
+	  if(myfrogs[i].chase_flag == 1) //&& myfrogs[i].speed == sp)
+	    nflychasers ++;
+	}
+      }
+    }
+
+    for(i=0; i<nfrogs; i++) {
+      if(a_i == 3) {
+	if(nherd[i] > 1) {
+	  if(nflychasers >= 2) {
+	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp);
+	  } else{
+	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+	  }
+	} else {
+	  if(nflychasers >= 2) {
+	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp);
+	  } else {
+	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+	  }
+	}
+      } else {
+	myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp);
+      }
+    }
 
 
-    if(!draw_screen()) running = false;
-    // Wait for next frame render time
+    if(myfly.spawn == 1) {
+      if( myfly.handle_collision(myTad.c.x, myTad.c.y) ) {
+	if(myTad.hpoints <= 18)
+	  myTad.hpoints += 2;
+	else if(myTad.hpoints == 19)
+	  myTad.hpoints += 1;
+	flyspan.start();
+	suwaves[suwavenum][0] = -1;
+	suwaves[suwavenum][1] = myfly.c.x - 150;
+	suwaves[suwavenum][2] = myfly.c.y - 150;
+	if(++suwavenum == 20) suwavenum = 0;
+#ifdef WITH_SOUND
+	Mix_PlayChannel(-1, slurp, 0);
+#endif
+      }
+      for(i=0; i<nfrogs; i++) {
+	if( myfly.handle_collision(myfrogs[i].c.x, myfrogs[i].c.y) ) { 
+	  myfrogs[i].speed = sp + 2;
+	  warpspan[i].start();
+	  flyspan.start();
+	  suwaves[suwavenum][0] = -1;
+	  suwaves[suwavenum][1] = myfly.c.x - 150;
+	  suwaves[suwavenum][2] = myfly.c.y - 150;
+	  if(++suwavenum == 20) suwavenum = 0;
+#ifdef WITH_SOUND
+	  Mix_PlayChannel(-1, slurp, 0);
+#endif
+	  break;
+	}
+      }
+    }
+
+
+
+	// ********************************* LOGIC *************************************** //
+
+
+    if( (lifespan.get_ticks() - tadswim) >= 50 ) {
+      tadswim = lifespan.get_ticks();
+      myTad.move(abs(myTad.xflag)+abs(myTad.yflag));
+    } else {
+      myTad.move(0);
+    }
+
+
+    for(i=0; i<nfrogs; i++) {
+      if(warpspan[i].get_ticks() >= 5000 ) {
+	warpspan[i].stop();
+	myfrogs[i].speed = sp;
+      }
+      myfrogs[i].move();
+    }
+
+
+    for(i=0; i<nfrogs; i++) {
+      if(distance(myTad.c.x, myTad.c.y, myfrogs[i].c.x, myfrogs[i].c.y) <= myTad.c.r + myfrogs[i].c.r) {
+	suwaves[suwavenum][0] = -1;
+	suwaves[suwavenum][1] = myTad.c.x - 150;
+	suwaves[suwavenum][2] = myTad.c.y - 150;
+	if(++suwavenum == 20) suwavenum = 0;
+#ifdef WITH_SOUND
+	Mix_PlayChannel(-1, damage, 0);
+#endif
+	myTad.hpoints--;
+      }
+    }
+
+    if(myfly.spawn == 0) {
+      if(flyspan.get_ticks() >= 1000) {
+	flyspan.stop();
+	myfly.spawn = 1;
+	myfly.c.x = 10+drand48()*(SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH-20)+LEADER_WIDTH;
+	myfly.c.y = 10+drand48()*(SCREEN_HEIGHT-BANNER_HEIGHT-20) + BANNER_HEIGHT;
+      }
+    }
+
+    if(myTad.hpoints <= 10) { leech = lifespan.get_ticks();}
+
+    if( (lifespan.get_ticks() - leech) >= 5000 ) {
+      leech = lifespan.get_ticks();
+      if(myTad.hpoints > 10)
+	myTad.hpoints--;
+    }
+
+    for(i=0; i<nfrogs; i++) {
+      if(myfrogs[i].jumpstate == 1) {
+	bigwaves[bwavenum][0] = -1;
+	bigwaves[bwavenum][1] = myfrogs[i].c.x - 75;
+	bigwaves[bwavenum][2] = myfrogs[i].c.y - 75;
+	if(++bwavenum == 20) bwavenum = 0;
+      }
+    }
+
+    if(tadchange == 1) {
+      bigwaves[bwavenum][0] = -1;
+      bigwaves[bwavenum][1] = myTad.c.x - 75;
+      bigwaves[bwavenum][2] = myTad.c.y - 75;
+      if(++bwavenum == 20) bwavenum = 0;
+      tadchange = 0;
+    }
+
+    if(lifespan.get_ticks() - bwave_clk >= 36) {
+      bwave_clk = lifespan.get_ticks();
+      for(j=0; j<24; j++) {
+	if(bigwaves[j][0] < 24) bigwaves[j][0]++;
+      }
+    }
+
+    if(lifespan.get_ticks() - suwave_clk >= 36)	{
+      suwave_clk = lifespan.get_ticks();
+      for(j=0; j<24; j++)
+	{
+	  if(suwaves[j][0] < 24) suwaves[j][0]++;
+	}
+    }
+
+    if(abs(myTad.xflag)+abs(myTad.yflag) == 0) {
+      smallwaves[swavenum][0] = 6;
+//	    swave_clk[19] = lifespan.get_ticks();
+    }
+//	else
+    if(lifespan.get_ticks() - swave_clk >= 75) {
+      swave_clk = lifespan.get_ticks();
+      if(++swavenum > 9) swavenum = 0;
+      smallwaves[swavenum][0] = -1;
+      smallwaves[swavenum][1] = myTad.c.x - myTad.c.r - 10;
+      smallwaves[swavenum][2] = myTad.c.y - myTad.c.r - 10;
+      for(j=0; j<10; j++)
+	if(smallwaves[j][0] < 6) smallwaves[j][0]++;
+    }
+
+    
+    // ************** DRAW STUFF ***********************//
+    // Make screen white
+  SDL_FillRect( screen, &screen->clip_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
+    
+
+    for(j=0; j<10; j++){
+      if(smallwaves[j][0] != 6){
+	apply_surface(smallwaves[j][1], smallwaves[j][2], waves_small, screen, &swaveclips[smallwaves[j][0]]);
+      }
+    }
+
+    for(j=0; j<20; j++){
+      if(bigwaves[j][0] != 24){
+	apply_surface(bigwaves[j][1], bigwaves[j][2], waves_big, screen, &bwaveclips[bigwaves[j][0]]);
+      }
+      if(suwaves[j][0] != 24){
+	apply_surface(suwaves[j][1], suwaves[j][2], waves_super, screen, &suwaveclips[suwaves[j][0]]);
+      }
+    }
+
+
+
+    myTad.show();
+    
+    for(i=0; i<nfrogs; i++)
+      myfrogs[i].show(sp);
+
+    if(myfly.spawn == 1)
+      myfly.show();
+
+
+    // Draw the leader board stuff
+    if(!draw_sidepanels()) running = false;
+    
+    if(SDL_Flip(screen) == -1) return false;
+    sprintf(caption,"Hit Points = %d", myTad.hpoints);
+    SDL_WM_SetCaption(caption, NULL);
+
+        // Wait for next frame render time
     if(fps.get_ticks() < (1000 / FRAMES_PER_SECOND)){
       SDL_Delay((1000/FRAMES_PER_SECOND) - fps.get_ticks());
     }

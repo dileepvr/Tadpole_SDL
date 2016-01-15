@@ -453,8 +453,10 @@ void Frog::handle_events(int X, int Y, int Xv, int Yv, int Xf, int Yf, int fspaw
 	{
 	    X += Xv*dist*2/speed/DOT_WIDTH;
 	    Y += Yv*dist*2/speed/DOT_HEIGHT;
-	    if(X < 0) X = c.r; if(X > SCREEN_WIDTH) X = SCREEN_WIDTH - c.r;
-	    if(Y < 0) Y = c.r; if(Y > SCREEN_HEIGHT) Y = SCREEN_HEIGHT - c.r;
+	    if(X < LEADER_WIDTH) X = c.r + LEADER_WIDTH;
+	    if(X > SCREEN_WIDTH - HISCORE_WIDTH) X = SCREEN_WIDTH - HISCORE_WIDTH - c.r;
+	    if(Y < BANNER_HEIGHT) Y = c.r + BANNER_HEIGHT;
+	    if(Y > SCREEN_HEIGHT) Y = SCREEN_HEIGHT - c.r;
 	    dist = distance(X, Y, c.x, c.y);
 	    if(fspawn == 1 && dist > distance(Xf, Yf, c.x, c.y))
 	    {
@@ -486,9 +488,9 @@ void Frog::move()
     c.x += xVel;
 
     // If the frog went too far to the left or right
-    if( c.x - c.r < 0 )
+    if( c.x - c.r < LEADER_WIDTH )
     {
-	c.x = c.r + 1;
+	c.x = c.r + 1 + LEADER_WIDTH;
 	xVel = 0;
 	jumpstate = 1;
 	bflag = 0;
@@ -502,9 +504,9 @@ void Frog::move()
 #endif
     }
 
-    if( c.x + c.r > SCREEN_WIDTH )
+    if( c.x + c.r > SCREEN_WIDTH - HISCORE_WIDTH )
     {
-	c.x = SCREEN_WIDTH - c.r - 1;
+	c.x = SCREEN_WIDTH - c.r - 1 - HISCORE_WIDTH;
 	xVel = 0;
 	jumpstate = 1;
 	bflag = 2;
@@ -533,9 +535,9 @@ void Frog::move()
     c.y += yVel;
 
     // If the dot went too far up or down
-    if(c.y - c.r < 0)
+    if(c.y - c.r < BANNER_HEIGHT)
     {
-	c.y = c.r + 1;
+	c.y = c.r + 1 + BANNER_HEIGHT;
 	yVel = 0;
 	jumpstate = 1;
 	bflag = 1;
