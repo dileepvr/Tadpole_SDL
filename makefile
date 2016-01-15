@@ -8,7 +8,7 @@ COMPILERFLAGS = -Wall
 
 CC = g++
 CFLAGS = $(COMPILERFLAGS) $(INCLUDE)
-LIBRARIES = -lSDL -lSDL_image -lSDL_ttf -lSDL_mixer -lm 
+LIBRARIES = -lSDL -lSDL_image -lSDL_ttf -lSDL_net -lSDL_mixer -lm 
 
 TEST_FILES = main.o 
 EXECUTABLE = tadpole

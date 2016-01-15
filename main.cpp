@@ -9,8 +9,10 @@
 #include "/usr/include/SDL/SDL.h"
 #include "/usr/include/SDL/SDL_image.h"
 #include "/usr/include/SDL/SDL_ttf.h"
+#include "/usr/include/SDL/SDL_net.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <math.h>
 #include <vector>
@@ -30,6 +32,15 @@ int BANNER_HEIGHT = (int)(0.03906*SCREEN_WIDTH);//75;
 int SCREEN_BPP = 32;		// Bits per pixel
 
 const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
+
+// Server network stuff
+const Uint16 PORT = 13370;         // Port to listen on for tcp
+IPaddress ip, *remoteip;
+TCPsocket server,tmpclient, players[MAX_PLAYERS];
+char buf[1024];
+int len;
+Uint32 ipaddr;
+
 int ntads = 0;              // Number of tads alive 
 
 int txtoffset = (int)(HISCORE_WIDTH/20);
@@ -94,6 +105,26 @@ bool init() {
     	return false;
     }
 
+    // Initialize SDL_net 
+    if(SDLNet_Init()==-1) {
+      printf("SDLNet_Init: %s\n",SDLNet_GetError());
+      return false;
+    }
+    
+    // Setup server
+    if(SDLNet_ResolveHost(&ip,NULL,PORT)==-1) {
+      printf("SDLNet_ResolveHost: %s\n",SDLNet_GetError());
+      return false;
+    }
+
+    // open the server socket 
+    server=SDLNet_TCP_Open(&ip);
+    if(!server) {
+      printf("SDLNet_TCP_Open: %s\n",SDLNet_GetError());
+      return false;
+    }
+    
+    
     screen = SDL_SetVideoMode( SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, SDL_SWSURFACE);
     if(screen == NULL) {
 	printf("error: SDL_SetVideoMode failed.\n");
@@ -266,7 +297,8 @@ void clean_up() {
   TTF_CloseFont(larfont);  
   TTF_CloseFont(bigfont);
   TTF_Quit();
-  
+
+  SDLNet_Quit();
   SDL_Quit();
   
 }
@@ -434,6 +466,27 @@ int main(int argc, char* argv[]) {
   while (running) {
 
     fps.start();
+
+    // Listen for connections
+    tmpclient = SDLNet_TCP_Accept(server);
+    if(tmpclient != NULL) {
+      remoteip=SDLNet_TCP_GetPeerAddress(tmpclient);
+      if(!remoteip) {
+	printf("SDLNet_TCP_GetPeerAddress: %s\n",SDLNet_GetError());
+	continue;
+      }
+      ipaddr=SDL_SwapBE32(remoteip->host);
+#ifdef PRINT_MESSAGES
+      printf("Accepted a connection from %d.%d.%d.%d port %hu\n",
+			ipaddr>>24,
+			(ipaddr>>16)&0xff,
+			(ipaddr>>8)&0xff,
+			ipaddr&0xff,
+			remoteip->port);
+#endif
+      SDLNet_TCP_Close(tmpclient);      
+    }
+    
     
     while(SDL_PollEvent ( &event )) {
 
