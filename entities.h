@@ -148,6 +148,7 @@ Tadpole::Tadpole()
 
 void Tadpole::spawn(char* playername, int tadnum)
 {
+  ntads++;
   strcpy(name, playername);
   memset(name+15,0,1);
 
@@ -175,6 +176,7 @@ void Tadpole::spawn(char* playername, int tadnum)
 void Tadpole::kill()
 {
 
+  ntads--;
 #ifdef PRINT_MESSAGES  
   printf("%s lasted for %4.1f seconds.\n",name,1.0*age_clock.get_ticks()/1000);
 #endif

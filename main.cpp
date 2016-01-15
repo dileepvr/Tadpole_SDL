@@ -1,5 +1,6 @@
 #define WITH_SOUND
 #define PRINT_MESSAGES
+#define TADPOLE_COLLISIONS
 
 #ifdef WITH_SOUND
 #include "/usr/include/SDL/SDL_mixer.h"
@@ -28,6 +29,9 @@ int HI_X_OFFSET = (int)(0.773475*SCREEN_WIDTH);//1245;
 int BANNER_HEIGHT = (int)(0.03906*SCREEN_WIDTH);//75;
 int SCREEN_BPP = 32;		// Bits per pixel
 
+const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
+int ntads = 0;              // Number of tads alive 
+
 int txtoffset = (int)(HISCORE_WIDTH/20);
 
 int DOT_HEIGHT = 20;  		// Size of player
@@ -46,7 +50,6 @@ SDL_Surface *waves_small;
 SDL_Surface *waves_big;
 SDL_Surface *waves_super;
 
-SDL_Surface *players[2];
 
 SDL_Event event;
 
@@ -70,9 +73,10 @@ TTF_Font *larfont = NULL;
 TTF_Font *bigfont = NULL;
 
 // Wave tracker [wave #] [frame/flag & coordinates]
-int smallwaves[20][3];
-int bigwaves[20][3];
-int suwaves[20][3];
+const int NUMWAVES = 100;
+int smallwaves[MAX_PLAYERS][NUMWAVES][3];
+int bigwaves[NUMWAVES][3];
+int suwaves[NUMWAVES][3];
 
 SDL_Color redcolor = {0xFF, 0, 0};
 Uint32 tadcolor[32];
@@ -167,14 +171,6 @@ bool load_files() {
 
   SDL_FreeSurface(tmp);
   
-  strcpy(fname,"images/tad_sprites.png");
-  players[0] = load_image( fname );
-  memset(fname,0,sizeof(fname));
-
-  strcpy(fname,"images/tad_sprites.png");
-  players[1] = load_image( fname );
-  memset(fname,0,sizeof(fname));
-  
   strcpy(fname,"images/frog_sprites2.png");
   frog = load_image( fname );
   memset(fname,0,sizeof(fname));
@@ -239,8 +235,6 @@ void clean_up() {
   SDL_FreeSurface(screen);
   SDL_FreeSurface(message);
   SDL_FreeSurface(player1);
-  SDL_FreeSurface(players[0]);
-  SDL_FreeSurface(players[1]);
   SDL_FreeSurface(frog);
   SDL_FreeSurface(fly);
   SDL_FreeSurface(waves_small);
@@ -315,11 +309,32 @@ int main(int argc, char* argv[]) {
 
 
   bool running = true;
-  int i, j, xfrog, yfrog, xfly, yfly, leech = 0, tadswim = 0, tadchange = 0, swavenum = 0, swave_clk = 0;
+  int i, j, xfrog, yfrog, xfly, yfly, leech[MAX_PLAYERS], tadswim = 0, swavenum[MAX_PLAYERS], swave_clk[MAX_PLAYERS], cls, kk;
+  float dist;
   int nfrogs = 10; // Number of frogs
   int sp = 3;    // Speed (1-3)
   int a_i = 3;  // AI (1-3)
 
+#ifdef TADPOLE_COLLISIONS  
+
+  int tempvel;
+  int collisions[MAX_PLAYERS][MAX_PLAYERS];
+
+  for(i=0;i<MAX_PLAYERS;i++) {
+    for(j=0;j<MAX_PLAYERS;j++) {
+      collisions[i][j] = 0;
+    }
+  }
+
+#endif
+
+
+  for(i=0;i<MAX_PLAYERS;i++) {
+    leech[i] = 0;
+    swavenum[i] = 0;
+    swave_clk[i] = 0;
+  }
+  
   int bwavenum = 0, bwave_clk, mm_clk = 0, suwavenum = 0, suwave_clk = 0;  // various wave clocks and wave counters (storing latest wave to be animated)
 
   int pause = 0, nherd[10], nflychasers = 0; // nherd[i] counts number of close frogs to ith frog in jumpstate 0.
@@ -345,22 +360,26 @@ int main(int argc, char* argv[]) {
   
 //    Setting wave flags to 'not animate / done animation'
 
-  for(j=0; j<10; j++) {
+  for(j=0; j<NUMWAVES; j++) {
     nherd[j] = 0;
-    smallwaves[j][0] = 6;
+    for(kk=0; kk<MAX_PLAYERS; kk++) {
+      smallwaves[kk][j][0] = 6;
+    }
   }
 
-  for(j=0; j<20; j++) {
+  for(j=0; j<NUMWAVES; j++) {
     bigwaves[j][0] = 24;
     suwaves[j][0] = 24;
   }
+
   
   if (init() == false) return 1;
 
   if (load_files() == false) return 1;
 
   // Spawn Tadpole
-  Tadpole myTad;
+  //  Tadpole myTad;
+  std::vector<Tadpole> myTad(MAX_PLAYERS);
 
 
   // Spawn fly
@@ -382,7 +401,10 @@ int main(int argc, char* argv[]) {
   }
 
 
-  myTad.show();
+
+  for(i=0; i<MAX_PLAYERS; i++) {  
+    myTad[i].show();
+  }
 
   for(i=0; i<nfrogs; i++)
     myfrogs[i].show(sp);
@@ -396,6 +418,9 @@ int main(int argc, char* argv[]) {
 
   gameclock.start();
   
+#ifdef PRINT_MESSAGES  
+  printf("Tadpole server is up!\n");
+#endif
   
 
 #ifdef WITH_SOUND
@@ -416,20 +441,67 @@ int main(int argc, char* argv[]) {
 	if(event.key.keysym.sym == SDLK_ESCAPE) {
 	  running = false;
 	}
-	if(event.key.keysym.sym == SDLK_RETURN) {
-	  if(!myTad.alive) {
-	    myTad.spawn(Tadname, 3);
+	if(event.key.keysym.sym == SDLK_RETURN) { // SPAWN NEW TAD
+	  i = 0;
+	  while(i<MAX_PLAYERS) {	  
+	    if(!myTad[i].alive) {
+	      myTad[i].spawn(Tadname, i);
+	      break;
+	    } else { i++; }
+	  }
+	  if(i == MAX_PLAYERS) {
+#ifdef PRINT_MESSAGES  
+	    printf("No free slots available.\n");
+#endif
 	  }
 	}
       }
 
-      if(myTad.alive) { myTad.handle_input(0); }
+  for(i=0; i<MAX_PLAYERS; i++) {      
+      if(myTad[i].alive) { myTad[i].handle_input(i); }
+  }
       
       if(event.type == SDL_QUIT) running = false;
       
     }
 
-    // ******************** STUFF ********************* //
+
+//***************** Tad-Tad collisions ****************//    
+#ifdef TADPOLE_COLLISIONS
+
+
+    if(ntads > 1) {
+      for(i = 0; i < MAX_PLAYERS; i++) {
+	if (myTad[i].alive) {
+	  for(j = i+1; j < MAX_PLAYERS; j++) {
+	    if(myTad[j].alive) {
+	      if(distance(myTad[i].c.x,myTad[i].c.y,myTad[j].c.x,myTad[j].c.y) <= myTad[i].c.r+myTad[j].c.r) {
+		if(collisions[i][j] == 0) {
+		  collisions[i][j] = 1;
+		  collisions[j][i] = 1;
+		  tempvel = myTad[i].xVel;
+		  myTad[i].xVel = myTad[j].xVel;
+		  myTad[j].xVel = tempvel;
+		  tempvel = myTad[i].yVel;
+		  myTad[i].yVel = myTad[j].yVel;
+		  myTad[j].yVel = tempvel;
+		}
+	      } else {
+		collisions[i][j] = 0;
+		collisions[j][i] = 0;
+	      }
+	    }
+	  }
+	}
+      }
+    }
+    
+    
+#endif    
+    
+//*****************************************************//
+	
+// ******************** FROGS CHASING FLIES ********************* //
 
     if(a_i == 3) {
       nflychasers = 0;
@@ -448,41 +520,61 @@ int main(int argc, char* argv[]) {
     }
 
     for(i=0; i<nfrogs; i++) {
+
+      // Find the live Tadpole closest to myfrogs[i]
+      cls = 0;
+      dist = 4*SCREEN_WIDTH;
+
+      for(kk=0;kk<MAX_PLAYERS;kk++){
+	if(myTad[kk].alive) {
+	  if((dist>distance(myTad[cls].c.x,myTad[cls].c.y,myfrogs[i].c.x,myfrogs[i].c.y)) && (myTad[kk].hpoints > 0)) {
+	    cls = kk;
+	    dist=distance(myTad[cls].c.x,myTad[cls].c.y,myfrogs[i].c.x,myfrogs[i].c.y);
+	  }
+	}
+      }
+      
+      
       if(a_i == 3) {
 	if(nherd[i] > 1) {
 	  if(nflychasers >= 2) {
-	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp,myTad.alive);
+	    myfrogs[i].handle_events(myTad[cls].c.x+100*(drand48()-1), myTad[cls].c.y+100*(drand48()-1), myTad[cls].xVel, myTad[cls].yVel, myfly.c.x, myfly.c.y, 0, sp,myTad[cls].alive);
 	  } else{
-	    myfrogs[i].handle_events(myTad.c.x+100*(drand48()-1), myTad.c.y+100*(drand48()-1), myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
+	    myfrogs[i].handle_events(myTad[cls].c.x+100*(drand48()-1), myTad[cls].c.y+100*(drand48()-1), myTad[cls].xVel, myTad[cls].yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad[cls].alive);
 	  }
 	} else {
 	  if(nflychasers >= 2) {
-	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, 0, sp,myTad.alive);
+	    myfrogs[i].handle_events(myTad[cls].c.x, myTad[cls].c.y, myTad[cls].xVel, myTad[cls].yVel, myfly.c.x, myfly.c.y, 0, sp,myTad[cls].alive);
 	  } else {
-	    myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
+	    myfrogs[i].handle_events(myTad[cls].c.x, myTad[cls].c.y, myTad[cls].xVel, myTad[cls].yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad[cls].alive);
 	  }
 	}
       } else {
-	myfrogs[i].handle_events(myTad.c.x, myTad.c.y, myTad.xVel, myTad.yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad.alive);
+	myfrogs[i].handle_events(myTad[cls].c.x, myTad[cls].c.y, myTad[cls].xVel, myTad[cls].yVel, myfly.c.x, myfly.c.y, myfly.spawn, sp,myTad[cls].alive);
       }
     }
 
-
+    // ************ IS THE FLY GETTING EATEN? ************ //
     if(myfly.spawn == 1) {
-      if( myfly.handle_collision(myTad.c.x, myTad.c.y) ) {
-	if(myTad.hpoints <= 18)
-	  myTad.hpoints += 2;
-	else if(myTad.hpoints == 19)
-	  myTad.hpoints += 1;
-	flyspan.start();
-	suwaves[suwavenum][0] = -1;
-	suwaves[suwavenum][1] = myfly.c.x - 150;
-	suwaves[suwavenum][2] = myfly.c.y - 150;
-	if(++suwavenum == 20) suwavenum = 0;
+      for(kk=0; kk<MAX_PLAYERS; kk++) {
+	if(myTad[kk].alive) {
+	  if( myfly.handle_collision(myTad[kk].c.x, myTad[kk].c.y) ) {
+	    if(myTad[kk].hpoints <= 18)
+	      myTad[kk].hpoints += 2;
+	    else if(myTad[kk].hpoints == 19)
+	      myTad[kk].hpoints += 1;
+	    flyspan.start();
+	    suwaves[suwavenum][0] = -1;
+	    suwaves[suwavenum][1] = myfly.c.x - 150;
+	    suwaves[suwavenum][2] = myfly.c.y - 150;
+	    if(++suwavenum == NUMWAVES) suwavenum = 0;
 #ifdef WITH_SOUND
-	Mix_PlayChannel(-1, slurp, 0);
+	    Mix_PlayChannel(-1, slurp, 0);
 #endif
+	  }
+	}
       }
+      
       for(i=0; i<nfrogs; i++) {
 	if( myfly.handle_collision(myfrogs[i].c.x, myfrogs[i].c.y) ) { 
 	  myfrogs[i].speed = sp + 2;
@@ -491,7 +583,7 @@ int main(int argc, char* argv[]) {
 	  suwaves[suwavenum][0] = -1;
 	  suwaves[suwavenum][1] = myfly.c.x - 150;
 	  suwaves[suwavenum][2] = myfly.c.y - 150;
-	  if(++suwavenum == 20) suwavenum = 0;
+	  if(++suwavenum == NUMWAVES) suwavenum = 0;
 #ifdef WITH_SOUND
 	  Mix_PlayChannel(-1, slurp, 0);
 #endif
@@ -505,12 +597,19 @@ int main(int argc, char* argv[]) {
 	// ********************************* LOGIC *************************************** //
 
 
-    if(myTad.alive) {
-      if( (gameclock.get_ticks() - tadswim) >= 50 ) {
-	tadswim = gameclock.get_ticks();
-	myTad.move(abs(myTad.xflag)+abs(myTad.yflag));
-      } else {
-	myTad.move(0);
+
+    if( (gameclock.get_ticks() - tadswim) >= 50 ) {
+      tadswim = gameclock.get_ticks();
+      for(kk=0; kk<MAX_PLAYERS; kk++) {
+	if(myTad[kk].alive) {
+	  myTad[kk].move(abs(myTad[kk].xflag)+abs(myTad[kk].yflag));
+	}
+      }
+    } else {
+      for(kk=0; kk<MAX_PLAYERS; kk++) {
+	if(myTad[kk].alive) {	
+	  myTad[kk].move(0);
+	}
       }
     }
 
@@ -525,15 +624,17 @@ int main(int argc, char* argv[]) {
 
 
     for(i=0; i<nfrogs; i++) {
-      if((distance(myTad.c.x, myTad.c.y, myfrogs[i].c.x, myfrogs[i].c.y) <= myTad.c.r + myfrogs[i].c.r)&& myTad.alive) {
-	suwaves[suwavenum][0] = -1;
-	suwaves[suwavenum][1] = myTad.c.x - 150;
-	suwaves[suwavenum][2] = myTad.c.y - 150;
-	if(++suwavenum == 20) suwavenum = 0;
+      for(kk=0; kk<MAX_PLAYERS; kk++) {
+	if((distance(myTad[kk].c.x, myTad[kk].c.y, myfrogs[i].c.x, myfrogs[i].c.y) <= myTad[kk].c.r + myfrogs[i].c.r)&& myTad[kk].alive) {
+	  suwaves[suwavenum][0] = -1;
+	  suwaves[suwavenum][1] = myTad[kk].c.x - 150;
+	  suwaves[suwavenum][2] = myTad[kk].c.y - 150;
+	  if(++suwavenum == NUMWAVES) suwavenum = 0;
 #ifdef WITH_SOUND
-	Mix_PlayChannel(-1, damage, 0);
+	  Mix_PlayChannel(-1, damage, 0);
 #endif
-	myTad.hpoints--;
+	  myTad[kk].hpoints--;
+	}
       }
     }
 
@@ -546,12 +647,18 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    if(myTad.hpoints <= 10) { leech = gameclock.get_ticks(); }
+    for(kk=0; kk<MAX_PLAYERS; kk++) {
+      if(myTad[kk].alive) {    
+	if(myTad[kk].hpoints <= 10) {
+	  leech[kk] = gameclock.get_ticks();
+	}
 
-    if( (gameclock.get_ticks() - leech) >= 5000 ) {
-      leech = gameclock.get_ticks();
-      if(myTad.hpoints > 10)
-	myTad.hpoints--;
+	if( (gameclock.get_ticks() - leech[kk]) >= 5000 ) {
+	  leech[kk] = gameclock.get_ticks();
+	  if(myTad[kk].hpoints > 10)
+	    myTad[kk].hpoints--;
+	}
+      }
     }
 
     for(i=0; i<nfrogs; i++) {
@@ -559,94 +666,102 @@ int main(int argc, char* argv[]) {
 	bigwaves[bwavenum][0] = -1;
 	bigwaves[bwavenum][1] = myfrogs[i].c.x - 75;
 	bigwaves[bwavenum][2] = myfrogs[i].c.y - 75;
-	if(++bwavenum == 20) bwavenum = 0;
+	if(++bwavenum == NUMWAVES) bwavenum = 0;
       }
     }
 
     // For spawning
-    if(myTad.justborn) {
-      bigwaves[bwavenum][0] = -1;
-      bigwaves[bwavenum][1] = myTad.c.x - 75;
-      bigwaves[bwavenum][2] = myTad.c.y - 75;
-      if(++bwavenum == 20) bwavenum = 0;
-      myTad.justborn = false;
+    for(kk=0; kk<MAX_PLAYERS; kk++) {
+      if(myTad[kk].justborn) {
+	bigwaves[bwavenum][0] = -1;
+	bigwaves[bwavenum][1] = myTad[kk].c.x - 75;
+	bigwaves[bwavenum][2] = myTad[kk].c.y - 75;
+	if(++bwavenum == NUMWAVES) bwavenum = 0;
+	myTad[kk].justborn = false;
+      }
     }
 
     if(gameclock.get_ticks() - bwave_clk >= 36) {
       bwave_clk = gameclock.get_ticks();
-      for(j=0; j<24; j++) {
+      for(j=0; j<NUMWAVES; j++) {
 	if(bigwaves[j][0] < 24) bigwaves[j][0]++;
       }
     }
 
     if(gameclock.get_ticks() - suwave_clk >= 36)	{
       suwave_clk = gameclock.get_ticks();
-      for(j=0; j<24; j++)
+      for(j=0; j<NUMWAVES; j++)
 	{
 	  if(suwaves[j][0] < 24) suwaves[j][0]++;
 	}
     }
 
-    if(abs(myTad.xflag)+abs(myTad.yflag) == 0) {
-      smallwaves[swavenum][0] = 6;
-//	    swave_clk[19] = gameclock.get_ticks();
-    }
-//	else
-    if(gameclock.get_ticks() - swave_clk >= 75) {
-      swave_clk = gameclock.get_ticks();
-      if(++swavenum > 9) swavenum = 0;
-      smallwaves[swavenum][0] = -1;
-      smallwaves[swavenum][1] = myTad.c.x - myTad.c.r - 10;
-      smallwaves[swavenum][2] = myTad.c.y - myTad.c.r - 10;
-      for(j=0; j<10; j++)
-	if(smallwaves[j][0] < 6) smallwaves[j][0]++;
+    for(kk=0; kk<MAX_PLAYERS; kk++) {
+
+      if(abs(myTad[kk].xflag)+abs(myTad[kk].yflag) == 0) {
+	smallwaves[kk][swavenum[kk]][0] = 6;
+      }
+
+      if(gameclock.get_ticks() - swave_clk[kk] >= 75) {
+	swave_clk[kk] = gameclock.get_ticks();
+	if(++swavenum[kk] >= NUMWAVES) swavenum[kk] = 0;
+	smallwaves[kk][swavenum[kk]][0] = -1;
+	smallwaves[kk][swavenum[kk]][1] = myTad[kk].c.x - myTad[kk].c.r - 10;
+	smallwaves[kk][swavenum[kk]][2] = myTad[kk].c.y - myTad[kk].c.r - 10;
+	for(j=0; j<NUMWAVES; j++)
+	  if(smallwaves[kk][j][0] < 6) smallwaves[kk][j][0]++;
+      }
     }
 
     
     // Kill dead tadpoles
-    if((myTad.hpoints <= 0) && myTad.alive) {
-      myTad.kill();
+  for(i=0;i<MAX_PLAYERS;i++) {    
+    if((myTad[i].hpoints <= 0) && myTad[i].alive) {
+      myTad[i].kill();
     }
+  }
 
     
     // ************** DRAW STUFF ***********************//
     // Make screen white
   SDL_FillRect( screen, &screen->clip_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
     
-
-  if(myTad.alive) {
-    for(j=0; j<10; j++){
-      if(smallwaves[j][0] != 6){
-	apply_surface(smallwaves[j][1], smallwaves[j][2], waves_small, screen, &swaveclips[smallwaves[j][0]]);
+  for(i=0;i<MAX_PLAYERS;i++) {
+    if(myTad[i].alive) {
+      for(j=0; j<NUMWAVES; j++){
+	if(smallwaves[i][j][0] != 6){
+	  apply_surface(smallwaves[i][j][1], smallwaves[i][j][2], waves_small, screen, &swaveclips[smallwaves[i][j][0]]);
+	}
       }
     }
   }
 
-    for(j=0; j<20; j++){
-      if(bigwaves[j][0] != 24){
-	apply_surface(bigwaves[j][1], bigwaves[j][2], waves_big, screen, &bwaveclips[bigwaves[j][0]]);
-      }
-      if(suwaves[j][0] != 24){
-	apply_surface(suwaves[j][1], suwaves[j][2], waves_super, screen, &suwaveclips[suwaves[j][0]]);
-      }
+  for(j=0; j<NUMWAVES; j++){
+    if(bigwaves[j][0] != 24){
+      apply_surface(bigwaves[j][1], bigwaves[j][2], waves_big, screen, &bwaveclips[bigwaves[j][0]]);
     }
+    if(suwaves[j][0] != 24){
+      apply_surface(suwaves[j][1], suwaves[j][2], waves_super, screen, &suwaveclips[suwaves[j][0]]);
+    }
+  }
 
 
-
-    myTad.show();
+  for(i=0;i<MAX_PLAYERS;i++) {
+    myTad[i].show();
+  }
     
-    for(i=0; i<nfrogs; i++)
-      myfrogs[i].show(sp);
+  for(i=0; i<nfrogs; i++)
+    myfrogs[i].show(sp);
 
-    if(myfly.spawn == 1)
-      myfly.show();
+  if(myfly.spawn == 1)
+    myfly.show();
 
 
     // Draw the leader board stuff
     if(!draw_sidepanels()) running = false;
     
     if(SDL_Flip(screen) == -1) return false;
-    sprintf(caption,"Hit Points = %d", myTad.hpoints);
+    sprintf(caption,"Hit Points = %d", myTad[0].hpoints);
     SDL_WM_SetCaption(caption, NULL);
 
         // Wait for next frame render time
@@ -663,6 +778,15 @@ int main(int argc, char* argv[]) {
 
   
   fps.stop();
+
+#ifdef PRINT_MESSAGES  
+  printf("Server shutting down!\n");
+#endif
+  
+  // Kill all players
+  for(i=0; i<MAX_PLAYERS; i++) {
+    if(myTad[i].alive) myTad[i].kill();
+  }
 
   
   clean_up();
