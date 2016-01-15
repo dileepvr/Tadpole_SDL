@@ -1,4 +1,5 @@
 #define WITH_SOUND
+#define PRINT_MESSAGES
 
 #ifdef WITH_SOUND
 #include "/usr/include/SDL/SDL_mixer.h"
@@ -45,6 +46,7 @@ SDL_Surface *waves_small;
 SDL_Surface *waves_big;
 SDL_Surface *waves_super;
 
+SDL_Surface *players[2];
 
 SDL_Event event;
 
@@ -73,6 +75,8 @@ int bigwaves[20][3];
 int suwaves[20][3];
 
 SDL_Color redcolor = {0xFF, 0, 0};
+Uint32 tadcolor[32];
+Uint32 transcolor;
 
 char fname[100];
 
@@ -109,12 +113,68 @@ bool init() {
 
 }
 
+
 bool load_files() {
 
+  SDL_Surface* tmp;
   strcpy(fname,"images/tad_sprites.png");
-  player1 = load_image( fname );
+  //  player1 = IMG_Load( fname );
+  tmp = IMG_Load( fname );
   memset(fname,0,sizeof(fname));
 
+  player1 = SDL_DisplayFormat(tmp);
+
+  //  tmp = SDL_DisplayFormat(player1);
+  Uint32 blackkey = SDL_MapRGB(player1->format,0,0,0);  
+  transcolor = SDL_MapRGB(player1->format,0x12,0x34,0x56);
+  tadcolor[0] = SDL_MapRGB(player1->format,0,0,0);
+  tadcolor[1] = SDL_MapRGB(player1->format,0xFF,0,0);
+  tadcolor[2] = SDL_MapRGB(player1->format,0,0xFF,0);
+  tadcolor[3] = SDL_MapRGB(player1->format,0,0,0xFF);
+  tadcolor[4] = SDL_MapRGB(player1->format,0xFF,0,0xDB);
+  tadcolor[5] = SDL_MapRGB(player1->format,0xFF,0x9B,0);
+  tadcolor[6] = SDL_MapRGB(player1->format,0xC4,0xB1,0x13);  
+  tadcolor[7] = SDL_MapRGB(player1->format,0,0x7E,0xFF);  
+  tadcolor[8] = SDL_MapRGB(player1->format,0x94,0x8C,0x8C);
+  tadcolor[9] = SDL_MapRGB(player1->format,0xDB,0x58,0x58);
+  tadcolor[10] = SDL_MapRGB(player1->format,0x17,0xA7,0x09);
+  tadcolor[11] = SDL_MapRGB(player1->format,0x29,0x27,0x94);
+  tadcolor[12] = SDL_MapRGB(player1->format,0x91,0x24,0xBF);
+  tadcolor[13] = SDL_MapRGB(player1->format,0x87,0x5A,0x0D);
+  tadcolor[14] = SDL_MapRGB(player1->format,0xFF,0xE5,0x09);
+  tadcolor[15] = SDL_MapRGB(player1->format,0x1C,0x9F,0xA4);
+  tadcolor[16] = SDL_MapRGB(player1->format,0xD2,0xC7,0xC7);
+  tadcolor[17] = SDL_MapRGB(player1->format,0xFF,0x83,0x83);
+  tadcolor[18] = SDL_MapRGB(player1->format,0x74,0xA4,0x6F);
+  tadcolor[19] = SDL_MapRGB(player1->format,0x55,0x54,0x8A);
+  tadcolor[20] = SDL_MapRGB(player1->format,0x5B,0x37,0x6A);
+  tadcolor[21] = SDL_MapRGB(player1->format,0xB3,0x91,0x57);
+  tadcolor[22] = SDL_MapRGB(player1->format,0xDE,0xFF,0x03);
+  tadcolor[23] = SDL_MapRGB(player1->format,0x3C,0x6E,0x70);
+  tadcolor[24] = SDL_MapRGB(player1->format,0x4E,0x51,0x53);
+  tadcolor[25] = SDL_MapRGB(player1->format,0x7E,0x4F,0x4F);
+  tadcolor[26] = SDL_MapRGB(player1->format,0x3E,0x5E,0x3B);
+  tadcolor[27] = SDL_MapRGB(player1->format,0x72,0x6F,0xEF);
+  tadcolor[28] = SDL_MapRGB(player1->format,0x87,0x0D,0x7A);
+  tadcolor[29] = SDL_MapRGB(player1->format,0x7E,0x6F,0x56);
+  tadcolor[30] = SDL_MapRGB(player1->format,0xFF,0xF7,0);
+  tadcolor[31] = SDL_MapRGB(player1->format,0,0xFF,0xF2);  
+
+
+  SDL_SetColorKey(player1,SDL_SRCCOLORKEY,blackkey);  
+  //  player1 = change_color(player1,transcolor,tadcolor[0]);
+  
+
+  SDL_FreeSurface(tmp);
+  
+  strcpy(fname,"images/tad_sprites.png");
+  players[0] = load_image( fname );
+  memset(fname,0,sizeof(fname));
+
+  strcpy(fname,"images/tad_sprites.png");
+  players[1] = load_image( fname );
+  memset(fname,0,sizeof(fname));
+  
   strcpy(fname,"images/frog_sprites2.png");
   frog = load_image( fname );
   memset(fname,0,sizeof(fname));
@@ -179,6 +239,8 @@ void clean_up() {
   SDL_FreeSurface(screen);
   SDL_FreeSurface(message);
   SDL_FreeSurface(player1);
+  SDL_FreeSurface(players[0]);
+  SDL_FreeSurface(players[1]);
   SDL_FreeSurface(frog);
   SDL_FreeSurface(fly);
   SDL_FreeSurface(waves_small);
@@ -265,8 +327,9 @@ int main(int argc, char* argv[]) {
 
   float ran; // random number storing
   char caption[32];
+  char Tadname[100];
 
-
+  strcpy(Tadname,"Player 0");
 
   set_frogclips();
   set_tadclips();
@@ -276,7 +339,7 @@ int main(int argc, char* argv[]) {
   set_suwaveclips();
   
   Timer fps;  
-  Timer lifespan;
+  Timer gameclock;
   Timer flyspan;
   std::vector<Timer> warpspan(nfrogs);
   
@@ -331,7 +394,7 @@ int main(int argc, char* argv[]) {
 
   SDL_Delay(500);
 
-  lifespan.start();
+  gameclock.start();
   
   
 
@@ -355,12 +418,12 @@ int main(int argc, char* argv[]) {
 	}
 	if(event.key.keysym.sym == SDLK_RETURN) {
 	  if(!myTad.alive) {
-	    myTad.spawn();
+	    myTad.spawn(Tadname, 3);
 	  }
 	}
       }
 
-      if(myTad.alive) { myTad.handle_input(); }
+      if(myTad.alive) { myTad.handle_input(0); }
       
       if(event.type == SDL_QUIT) running = false;
       
@@ -443,8 +506,8 @@ int main(int argc, char* argv[]) {
 
 
     if(myTad.alive) {
-      if( (lifespan.get_ticks() - tadswim) >= 50 ) {
-	tadswim = lifespan.get_ticks();
+      if( (gameclock.get_ticks() - tadswim) >= 50 ) {
+	tadswim = gameclock.get_ticks();
 	myTad.move(abs(myTad.xflag)+abs(myTad.yflag));
       } else {
 	myTad.move(0);
@@ -483,10 +546,10 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    if(myTad.hpoints <= 10) { leech = lifespan.get_ticks(); }
+    if(myTad.hpoints <= 10) { leech = gameclock.get_ticks(); }
 
-    if( (lifespan.get_ticks() - leech) >= 5000 ) {
-      leech = lifespan.get_ticks();
+    if( (gameclock.get_ticks() - leech) >= 5000 ) {
+      leech = gameclock.get_ticks();
       if(myTad.hpoints > 10)
 	myTad.hpoints--;
     }
@@ -509,15 +572,15 @@ int main(int argc, char* argv[]) {
       myTad.justborn = false;
     }
 
-    if(lifespan.get_ticks() - bwave_clk >= 36) {
-      bwave_clk = lifespan.get_ticks();
+    if(gameclock.get_ticks() - bwave_clk >= 36) {
+      bwave_clk = gameclock.get_ticks();
       for(j=0; j<24; j++) {
 	if(bigwaves[j][0] < 24) bigwaves[j][0]++;
       }
     }
 
-    if(lifespan.get_ticks() - suwave_clk >= 36)	{
-      suwave_clk = lifespan.get_ticks();
+    if(gameclock.get_ticks() - suwave_clk >= 36)	{
+      suwave_clk = gameclock.get_ticks();
       for(j=0; j<24; j++)
 	{
 	  if(suwaves[j][0] < 24) suwaves[j][0]++;
@@ -526,11 +589,11 @@ int main(int argc, char* argv[]) {
 
     if(abs(myTad.xflag)+abs(myTad.yflag) == 0) {
       smallwaves[swavenum][0] = 6;
-//	    swave_clk[19] = lifespan.get_ticks();
+//	    swave_clk[19] = gameclock.get_ticks();
     }
 //	else
-    if(lifespan.get_ticks() - swave_clk >= 75) {
-      swave_clk = lifespan.get_ticks();
+    if(gameclock.get_ticks() - swave_clk >= 75) {
+      swave_clk = gameclock.get_ticks();
       if(++swavenum > 9) swavenum = 0;
       smallwaves[swavenum][0] = -1;
       smallwaves[swavenum][1] = myTad.c.x - myTad.c.r - 10;
@@ -541,7 +604,7 @@ int main(int argc, char* argv[]) {
 
     
     // Kill dead tadpoles
-    if(myTad.hpoints <= 0) {
+    if((myTad.hpoints <= 0) && myTad.alive) {
       myTad.kill();
     }
 

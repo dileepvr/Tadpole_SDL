@@ -69,6 +69,15 @@ class Tadpole
 
     public:
 
+    // Name
+    char name[16];
+
+    // Sprite
+    SDL_Surface* sprite;
+
+    // Color
+    Uint32 color;
+    
     // Health of the Tadpole
     int hpoints;
 
@@ -92,12 +101,12 @@ class Tadpole
     Tadpole();
 
     // Spawn
-    void spawn();
+    void spawn(char* playername, int tadnum);
 
     void kill();
 	      
     // Tkes key presses and adjusts the Tadpole's velocity
-    void handle_input();
+    void handle_input(int tadnum);
 
     // Moves the Tadpole
     void move(int swim);
@@ -109,6 +118,10 @@ class Tadpole
 
 Tadpole::Tadpole()
 {
+
+  // clear name
+  memset(name,0,sizeof(name));
+
     // Initialize sprite markers
     angl = 4;
     ud = 0;
@@ -133,19 +146,40 @@ Tadpole::Tadpole()
 
 }
 
-void Tadpole::spawn()
+void Tadpole::spawn(char* playername, int tadnum)
 {
+  strcpy(name, playername);
+  memset(name+15,0,1);
+
+  if((tadnum > -1) && (tadnum < 32)) {
+    sprite = change_color(player1,transcolor,tadcolor[tadnum]);
+  } else {
+    sprite = change_color(player1,transcolor,tadcolor[0]);
+  }
+
+  color = SDL_MapRGB(screen->format, 0xFF, 0, 0);
   // Make alive
   hpoints = 10;
   alive = true;
   justborn = true;
 
   // Start age clock
-  age_clock.start();  
+  age_clock.start();
+
+#ifdef PRINT_MESSAGES  
+  printf("%s has joined the game.\n",name);
+#endif
+  
 }
 
 void Tadpole::kill()
 {
+
+#ifdef PRINT_MESSAGES  
+  printf("%s lasted for %4.1f seconds.\n",name,1.0*age_clock.get_ticks()/1000);
+#endif
+
+  SDL_FreeSurface(sprite);
   // Initialize sprite markers
   angl = 4;
   ud = 0;
@@ -171,8 +205,9 @@ void Tadpole::kill()
   age_clock.stop();
 }
 
-void Tadpole::handle_input()
+void Tadpole::handle_input(int tadnum)
 {
+  if(tadnum == 0) {
     // If a key was pressed
     if(event.type == SDL_KEYDOWN)
     {
@@ -180,13 +215,37 @@ void Tadpole::handle_input()
       // Adjust the velocity
 	switch(event.key.keysym.sym)
 	{
-	    case SDLK_UP: 
+	    case SDLK_UP: yflag -= 1; break;
+	    case SDLK_DOWN: yflag += 1; break;
+	    case SDLK_LEFT: xflag -= 1; break;
+	    case SDLK_RIGHT: xflag += 1; break;
+	}
+    }
+    
+    // If a key was released
+    else if(event.type == SDL_KEYUP)
+    {
+	// Adjust the velocity
+ 	switch(event.key.keysym.sym)
+	{
+	    case SDLK_UP: yflag += 1; break;
+	    case SDLK_DOWN: yflag -= 1; break;
+	    case SDLK_LEFT: xflag += 1; break;
+            case SDLK_RIGHT: xflag -= 1; break;
+	}
+    }
+  } else if(tadnum == 1) {
+
+    // If a key was pressed
+    if(event.type == SDL_KEYDOWN)
+    {
+
+      // Adjust the velocity
+	switch(event.key.keysym.sym)
+	{
 	    case SDLK_w: yflag -= 1; break;
-	    case SDLK_DOWN: 
 	    case SDLK_s: yflag += 1; break;
-	    case SDLK_LEFT: 
 	    case SDLK_a: xflag -= 1; break;
-	    case SDLK_RIGHT:
 	    case SDLK_d: xflag += 1; break;
 	}
     }
@@ -197,16 +256,13 @@ void Tadpole::handle_input()
 	// Adjust the velocity
  	switch(event.key.keysym.sym)
 	{
-	    case SDLK_UP:
 	    case SDLK_w: yflag += 1; break;
-	    case SDLK_DOWN:
 	    case SDLK_s: yflag -= 1; break;
-	    case SDLK_LEFT:
 	    case SDLK_a: xflag += 1; break;
-	    case SDLK_RIGHT:
 	    case SDLK_d: xflag -= 1; break;
 	}
-    }
+    }    
+  }
 
 //    if(keystate[SDLK_LEFT]) printf("left pressed.\n");
 /*    if(keystate[SDLK_LEFT]) xflag = -1;
@@ -368,7 +424,7 @@ void Tadpole::show()
 {
     // Show the Tadpole
   if (alive) {
-    apply_surface( c.x - c.r, c.y - c.r, player1, screen, &tadclip[angl][ud] );
+    apply_surface( c.x - c.r, c.y - c.r, sprite, screen, &tadclip[angl][ud] );
   }
 }
 
