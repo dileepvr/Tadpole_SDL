@@ -72,6 +72,10 @@ class Tadpole
     // Name
     char name[16];
 
+    // TCP socket
+    TCPsocket socket;
+    bool TCP_limbo;
+
     // Sprite
     SDL_Surface* sprite;
 
@@ -106,7 +110,7 @@ class Tadpole
     void kill();
 	      
     // Tkes key presses and adjusts the Tadpole's velocity
-    void handle_input(int tadnum);
+    void handle_input(char tadnum);
 
     // Moves the Tadpole
     void move(int swim);
@@ -121,6 +125,10 @@ Tadpole::Tadpole()
 
   // clear name
   memset(name,0,sizeof(name));
+
+  // Initialize client socket
+  socket = NULL;
+  TCP_limbo = 0;
 
     // Initialize sprite markers
     angl = 4;
@@ -148,10 +156,10 @@ Tadpole::Tadpole()
 
 void Tadpole::spawn(char* playername, int tadnum)
 {
-  ntads++;
   strcpy(name, playername);
   //  memset(name+15,0,1);
   name[15] = '\0';
+  TCP_limbo = false;
 
   if((tadnum > -1) && (tadnum < 32)) {
     sprite = change_color(player1,transcolor,tadcolor[tadnum]);
@@ -177,11 +185,17 @@ void Tadpole::spawn(char* playername, int tadnum)
 void Tadpole::kill()
 {
 
-  ntads--;
-#ifdef PRINT_MESSAGES  
-  printf("%s lasted for %4.1f seconds.\n",name,1.0*age_clock.get_ticks()/1000);
+  if (!TCP_limbo) {
+#ifdef PRINT_MESSAGES
+    printf("Player: %s lasted for %4.1f seconds.\n",name,1.0*age_clock.get_ticks()/1000);
 #endif
-
+  }
+  
+  SDLNet_TCP_Close(socket);
+  socket = NULL;
+  alive = false;
+  TCP_limbo = false;	    
+  
   SDL_FreeSurface(sprite);
   // Initialize sprite markers
   angl = 4;
@@ -208,8 +222,28 @@ void Tadpole::kill()
   age_clock.stop();
 }
 
-void Tadpole::handle_input(int tadnum)
+void Tadpole::handle_input(char tadnum)
 {
+
+  switch(tadnum) {
+  case '1': // Up-pressed
+  case '6': // Down-released
+    if(yflag > -1) { yflag -= 1; }
+    break;
+  case '2': // Up-released
+  case '5': // Down-pressed
+    if(yflag < 1) { yflag += 1; }
+    break;
+  case '3': // Right-pressed
+  case '7': // Left-released
+    if(xflag < 1) { xflag += 1; }
+    break;
+  case '4': // Right-released
+  case '8': // Left-pressed
+    if(xflag > -1) { xflag -= 1; }
+    break;
+  }
+  /*  
   if(tadnum == 0) {
     // If a key was pressed
     if(event.type == SDL_KEYDOWN)
@@ -266,7 +300,7 @@ void Tadpole::handle_input(int tadnum)
 	}
     }    
   }
-
+  */
 }
 
 void Tadpole::move(int swim)

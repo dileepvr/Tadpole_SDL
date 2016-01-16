@@ -36,15 +36,15 @@ const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 // Server network stuff
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 BUFFER_SIZE = 64;
-const int MAX_SOCKETS = MAX_PLAYERS + 1;
-const int MAX_CLIENTS = MAX_PLAYERS;
+//const int MAX_SOCKETS = MAX_PLAYERS + 1;
+//const int MAX_CLIENTS = MAX_PLAYERS; // always
 IPaddress serverIP, *remoteip;
 Uint32 ipaddr;
-TCPsocket serverSocket, clientSocket[MAX_CLIENTS];
-bool socketIsFree[MAX_CLIENTS];
+TCPsocket serverSocket;//, clientSocket[MAX_CLIENTS];
 SDLNet_SocketSet socketSet;
-int receivedByteCount = 0, clientCount = 0;
-char buf[BUFFER_SIZE];  
+// bool socketIsFree[MAX_CLIENTS];
+int receivedByteCount = 0;//, clientCount = 0;
+char buf[BUFFER_SIZE+1];  
 
 int ntads = 0;              // Number of tads alive 
 
@@ -98,8 +98,6 @@ SDL_Color redcolor = {0xFF, 0, 0};
 Uint32 tadcolor[32];
 Uint32 transcolor;
 
-char fname[100];
-
 SDL_Rect leader_rect = {0, BANNER_HEIGHT, LEADER_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
 SDL_Rect hiscore_rect = {HI_X_OFFSET, BANNER_HEIGHT, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
 SDL_Rect banner_rect = {LEADER_WIDTH, 0, SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH, BANNER_HEIGHT};
@@ -117,21 +115,15 @@ bool init() {
     }
 
     // Create socketset with enough space allocated for connections
-    socketSet = SDLNet_AllocSocketSet(MAX_SOCKETS);
+    socketSet = SDLNet_AllocSocketSet(MAX_PLAYERS+1);
     if(socketSet == NULL) {
       printf("Failed to allocate the socket set: %s\n",
 	     SDLNet_GetError());
       return false;
     } else {
 #ifdef PRINT_MESSAGES
-      printf("Allocated socket set size: %d\n", MAX_SOCKETS);
+      printf("Allocated socket set size: %d\n", MAX_PLAYERS+1);
 #endif
-    }
-
-    // Initialize all client sockets
-    for(int loop = 0; loop < MAX_CLIENTS; loop++) {
-      clientSocket[loop] = NULL;
-      socketIsFree[loop] = true;
     }
     
     // Setup server
@@ -181,6 +173,7 @@ bool init() {
 
 bool load_files() {
 
+  char fname[100];  
   SDL_Surface* tmp;
   strcpy(fname,"images/tad_sprites.png");
   //  player1 = IMG_Load( fname );
@@ -376,8 +369,9 @@ int main(int argc, char* argv[]) {
   int nfrogs = 10; // Number of frogs
   int sp = 3;    // Speed (1-3)
   int a_i = 3;  // AI (1-3)
+  bool local_player = false;
 
-
+  
 #ifdef TADPOLE_COLLISIONS  
 
   int tempvel;
@@ -400,14 +394,14 @@ int main(int argc, char* argv[]) {
   
   int bwavenum = 0, bwave_clk, mm_clk = 0, suwavenum = 0, suwave_clk = 0;  // various wave clocks and wave counters (storing latest wave to be animated)
 
-  int pause = 0, nherd[10], nflychasers = 0; // nherd[i] counts number of close frogs to ith frog in jumpstate 0.
+  int nherd[10], nflychasers = 0; // nherd[i] counts number of close frogs to ith frog in jumpstate 0.
   int tadflip = 0, mmtadx = SCREEN_WIDTH/2, mmtady = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
 
   float ran; // random number storing
   char caption[32];
   char Tadname[100];
 
-  strcpy(Tadname,"Player 0");
+  strcpy(Tadname,"Player 0"); // Name of local player
 
   set_frogclips();
   set_tadclips();
@@ -509,26 +503,25 @@ int main(int argc, char* argv[]) {
       // All server activity interpreted as request for TCP connection
       if(serverSocketActivity != 0) {
 	// If we have room for more clients...
-	if(clientCount < MAX_CLIENTS) {
+	if(ntads < MAX_PLAYERS) {
 	  int freeSpot = -99;
-	  for(int i = 0; i < MAX_CLIENTS; i++) {
-	    if(socketIsFree[i] == true) {
-	      socketIsFree[i] = false;
+	  for(int i = 0; i < MAX_PLAYERS; i++) {
+	    if(!myTad[i].alive && !myTad[i].TCP_limbo) {
 	      freeSpot = i;
 	      break;
 	    }
 	  }
 	  // Accept the client connection
-	  clientSocket[freeSpot] = SDLNet_TCP_Accept(serverSocket);
+	  myTad[freeSpot].socket = SDLNet_TCP_Accept(serverSocket);
 
 	  // get clients IP
-	  remoteip = SDLNet_TCP_GetPeerAddress(clientSocket[freeSpot]);
+	  remoteip = SDLNet_TCP_GetPeerAddress(myTad[freeSpot].socket);
 	  if(!remoteip) {
 #ifdef PRINT_MESSAGES
 	    printf("SDLNet_TCP_GetPeerAddress: %s\n",SDLNet_GetError());
 #endif
 	    // No remote ip?! NO CONNECTION!
-	    SDLNet_TCP_Close(clientSocket[freeSpot]);	  
+	    SDLNet_TCP_Close(myTad[freeSpot].socket);	  
 	  } else {
 #ifdef PRINT_MESSAGES	  
 	    ipaddr=SDL_SwapBE32(remoteip->host);
@@ -539,15 +532,15 @@ int main(int argc, char* argv[]) {
 		   ipaddr&0xff,
 		   remoteip->port);
 	    printf(" There are now %d client(s) online.\n",
-		   clientCount+1);
+		   ntads+1);
 #endif
-	    clientCount++;
+	    ntads++;
+	    myTad[freeSpot].TCP_limbo = true;
 	    // Add new client socket to socket set, to check activity
-	    SDLNet_TCP_AddSocket(socketSet, clientSocket[freeSpot]);
+	    SDLNet_TCP_AddSocket(socketSet, myTad[freeSpot].socket);
 	    // Send 'N' asking for name
 	    strcpy(buf,"N");
-	    int msgLength = strlen(buf) + 1;
-	    SDLNet_TCP_Send(clientSocket[freeSpot],(void*)buf,msgLength);
+	    SDLNet_TCP_Send(myTad[freeSpot].socket,(void*)buf,2);
 	  }
 	} else { // No new room for clients
 #ifdef PRINT_MESSAGES
@@ -557,48 +550,55 @@ int main(int argc, char* argv[]) {
 	  TCPsocket tempSock = SDLNet_TCP_Accept(serverSocket);
 	  // Send 'X' telling that there is no room
 	  strcpy(buf,"X");
-	  int msgLength = strlen(buf) + 1;
-	  SDLNet_TCP_Send(tempSock,(void*)buf,msgLength);
+	  SDLNet_TCP_Send(tempSock,(void*)buf,2);
 	  // Close temporary connection
 	  SDLNet_TCP_Close(tempSock);
 	}
       }
 
       // Check all possible client sockets for activity
-      for(i = 0; i < MAX_CLIENTS; i++) {
-	int clientSocketActivity = SDLNet_SocketReady(clientSocket[i]);
+      for(i = 0; i < MAX_PLAYERS; i++) {
+	int clientSocketActivity = SDLNet_SocketReady(myTad[i].socket);
 	if(clientSocketActivity != 0) {
-	  receivedByteCount = SDLNet_TCP_Recv(clientSocket[i],buf,BUFFER_SIZE);
+	  receivedByteCount = SDLNet_TCP_Recv(myTad[i].socket,buf,BUFFER_SIZE);
 	  // If activity, but no data, then assume disconnection
 	  if(receivedByteCount <= 0) {
 #ifdef PRINT_MESSAGES
-	    printf("Client %d disconnected. Now there are %d clients.\n", i, clientCount-1);
+	    printf("Client %d disconnected. Now there are %d clients.\n", i, ntads-1);
 #endif
 	    // Close connection
-	    SDLNet_TCP_DelSocket(socketSet, clientSocket[i]);
-	    SDLNet_TCP_Close(clientSocket[i]);
-	    clientSocket[i] = NULL;
-	    socketIsFree[i] = true;
-	    clientCount--;
+	    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+	    myTad[i].kill();
+	    ntads--;
 	  } else { // Got message from client
+	    buf[receivedByteCount] = '\0';
+	    if((buf[receivedByteCount-1] == '\r') || (buf[receivedByteCount-1] == '\n')) {
+	      buf[receivedByteCount-1] = '\0';	      
+	    }
 #ifdef PRINT_MESSAGES
 	    printf("Client: %d sent: %s.\n", i, buf);
 #endif
-	    // If client asked to quit by sending 'K' as first char
-	    if(buf[0] == 'K') {
+	    if(isalnum(buf[0]) != 0) {
+	    
+	      if(myTad[i].TCP_limbo) {
+		myTad[i].spawn(buf, i);
+	      } else {
+		// If client asked to quit by sending 'K' as first char
+		if(buf[0] == 'K') {
 #ifdef PRINT_MESSAGES
-	      printf("Client %d asked to be disconnected. Now there are %d clients.\n", i, clientCount-1);
+		  printf("Client %d asked to be disconnected. Now there are %d clients.\n", i, ntads-1);
 #endif
-	      // Send 'D' telling that server is killing client
-	      strcpy(buf,"D");
-	      int msgLength = strlen(buf) + 1;
-	      SDLNet_TCP_Send(clientSocket[i],(void*)buf,msgLength);
-	      // Close connection
-	      SDLNet_TCP_DelSocket(socketSet, clientSocket[i]);
-	      SDLNet_TCP_Close(clientSocket[i]);
-	      clientSocket[i] = NULL;
-	      socketIsFree[i] = true;
-	      clientCount--;	      
+		  // Send 'D' telling that server is killing client
+		  strcpy(buf,"D");
+		  SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
+		  // Close connection
+		  SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+		  myTad[i].kill();
+		  ntads--;		
+		} else {
+		  myTad[i].handle_input(buf[0]);
+		}
+	      }
 	    }
 	  }
 	}
@@ -630,7 +630,7 @@ int main(int argc, char* argv[]) {
       }
 
   for(i=0; i<MAX_PLAYERS; i++) {      
-      if(myTad[i].alive) { myTad[i].handle_input(i); }
+      if(myTad[i].alive) { myTad[i].handle_input('0'); }
   }
       
       if(event.type == SDL_QUIT) running = false;
@@ -889,7 +889,13 @@ int main(int argc, char* argv[]) {
     // Kill dead tadpoles
   for(i=0;i<MAX_PLAYERS;i++) {    
     if((myTad[i].hpoints <= 0) && myTad[i].alive) {
+      // Send 'D' telling that Tadpole has died
+      strcpy(buf,"D");
+      SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
+      // Close connection
+      SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
       myTad[i].kill();
+      ntads--;		
     }
   }
 
@@ -955,22 +961,19 @@ int main(int argc, char* argv[]) {
   printf("Closing remaining client connections.\n");
 #endif
   
-  // Close all surviving client connections
-  for(i=0; i < MAX_CLIENTS; i++) {
-    if(!socketIsFree[i]) {
+  // Close all surviving Tadpole sockets
+  for(i=0; i < MAX_PLAYERS; i++) {
+    if(myTad[i].alive) {
       // Send 'C' telling that server is closing
       strcpy(buf,"C");
-      int msgLength = strlen(buf) + 1;
-      SDLNet_TCP_Send(clientSocket[i],(void*)buf,msgLength);
+      SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
       // Close connection
-      SDLNet_TCP_DelSocket(socketSet, clientSocket[i]);
-      SDLNet_TCP_Close(clientSocket[i]);
+      SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+      myTad[i].kill();
+      ntads--;      
 #ifdef PRINT_MESSAGES  
-      printf("Client %d disconnected.\n", i);
+      printf("Client %d has been disconnected.\n", i);
 #endif
-      clientSocket[i] = NULL;
-      socketIsFree[i] = true;
-      clientCount--;
     }
   }
 
@@ -983,11 +986,6 @@ int main(int argc, char* argv[]) {
   // Close server socket
   SDLNet_TCP_Close(serverSocket);
   
-  // Kill all players
-  for(i=0; i<MAX_PLAYERS; i++) {
-    if(myTad[i].alive) myTad[i].kill();
-  }
-
   
   clean_up();
   return 0;
