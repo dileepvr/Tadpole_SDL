@@ -150,7 +150,8 @@ void Tadpole::spawn(char* playername, int tadnum)
 {
   ntads++;
   strcpy(name, playername);
-  memset(name+15,0,1);
+  //  memset(name+15,0,1);
+  name[15] = '\0';
 
   if((tadnum > -1) && (tadnum < 32)) {
     sprite = change_color(player1,transcolor,tadcolor[tadnum]);
