@@ -580,20 +580,23 @@ int main(int argc, char* argv[]) {
 	      if(myTad[i].TCP_limbo) {
 		myTad[i].spawn(buf, i);
 	      } else {
-		// If client asked to quit by sending 'K' as first char
-		if(buf[0] == 'K') {
+		for(j = 0; j < receivedByteCount; j++) {
+		  // If client asked to quit by sending 'K' as first char
+		  if(buf[j] == 'K') {
 #ifdef PRINT_MESSAGES
-		  printf("Client %d asked to be disconnected. Now there are %d clients.\n", i, ntads-1);
+		    printf("Client %d asked to be disconnected. Now there are %d clients.\n", i, ntads-1);
 #endif
-		  // Send 'D' telling that server is killing client
-		  strcpy(buf,"D");
-		  SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
-		  // Close connection
-		  SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
-		  myTad[i].kill();
-		  ntads--;		
-		} else {
-		  myTad[i].handle_input(buf[0]);
+		    // Send 'D' telling that server is killing client
+		    strcpy(buf,"D");
+		    SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
+		    // Close connection
+		    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+		    myTad[i].kill();
+		    ntads--;
+		    break;
+		  } else {
+		    myTad[i].handle_input(buf[j]);
+		  }
 		}
 	      }
 	    }
