@@ -36,14 +36,11 @@ const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 // Server network stuff
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 BUFFER_SIZE = 64;
-//const int MAX_SOCKETS = MAX_PLAYERS + 1;
-//const int MAX_CLIENTS = MAX_PLAYERS; // always
 IPaddress serverIP, *remoteip;
 Uint32 ipaddr;
-TCPsocket serverSocket;//, clientSocket[MAX_CLIENTS];
+TCPsocket serverSocket;
 SDLNet_SocketSet socketSet;
-// bool socketIsFree[MAX_CLIENTS];
-int receivedByteCount = 0;//, clientCount = 0;
+int receivedByteCount = 0;
 char buf[BUFFER_SIZE+1];  
 
 int ntads = 0;              // Number of tads alive 
