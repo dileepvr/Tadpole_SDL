@@ -235,11 +235,11 @@ void Tadpole::handle_input(char tadnum)
     if(yflag < 1) { yflag += 1; }
     break;
   case '3': // Right-pressed
-  case '7': // Left-released
+  case '8': // Left-released
     if(xflag < 1) { xflag += 1; }
     break;
   case '4': // Right-released
-  case '8': // Left-pressed
+  case '7': // Left-pressed
     if(xflag > -1) { xflag -= 1; }
     break;
   }
