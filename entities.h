@@ -246,10 +246,10 @@ void Tadpole::handle_input(int tadnum)
       // Adjust the velocity
 	switch(event.key.keysym.sym)
 	{
-	    case SDLK_w: yflag -= 1; break;
-	    case SDLK_s: yflag += 1; break;
-	    case SDLK_a: xflag -= 1; break;
-	    case SDLK_d: xflag += 1; break;
+	case SDLK_w: yflag -= 1; break;
+	case SDLK_s: yflag += 1; break;
+	case SDLK_a: xflag -= 1; break;
+	case SDLK_d: xflag += 1; break;
 	}
     }
     
@@ -259,37 +259,29 @@ void Tadpole::handle_input(int tadnum)
 	// Adjust the velocity
  	switch(event.key.keysym.sym)
 	{
-	    case SDLK_w: yflag += 1; break;
-	    case SDLK_s: yflag -= 1; break;
-	    case SDLK_a: xflag += 1; break;
-	    case SDLK_d: xflag -= 1; break;
+	case SDLK_w: yflag += 1; break;
+	case SDLK_s: yflag -= 1; break;
+	case SDLK_a: xflag += 1; break;
+	case SDLK_d: xflag -= 1; break;
 	}
     }    
   }
 
-//    if(keystate[SDLK_LEFT]) printf("left pressed.\n");
-/*    if(keystate[SDLK_LEFT]) xflag = -1;
-    if(keystate[SDLK_RIGHT]) xflag = 1;
-    if(keystate[SDLK_LEFT] == keystate[SDLK_RIGHT]) xflag = 0; 
-    if(keystate[SDLK_UP]) yflag = -1;
-    if(keystate[SDLK_DOWN]) yflag = 1;
-    if(keystate[SDLK_UP] == keystate[SDLK_DOWN]) yflag = 0; 
-*/
 }
 
 void Tadpole::move(int swim)
 {
 
 //    float tangent;
-    if(xflag != 0 && abs(xVel) < DOT_WIDTH / 2)
+    if(xflag != 0 && xflag*xVel < DOT_WIDTH / 2)
     {
 	xVel = xVel + xflag;
     }
 
-    if(xflag == 0 && xVel != 0)
+    if(xflag == 0 && xVel != 0) {
 	if(abs(xVel) == 1) xVel = 0;
-    //    	else xVel -= ceil(xVel/2);
-    	else xVel -= (int)(xVel/2);
+     	else xVel -= (int)(xVel/2);
+    }
 
 
     // Move the dot left or right
@@ -303,14 +295,15 @@ void Tadpole::move(int swim)
     }
 
 
-    if(yflag != 0 && abs(yVel) < DOT_HEIGHT / 2)
+    if(yflag != 0 && yflag*yVel < DOT_HEIGHT / 2)
     {
 	yVel = yVel + yflag;
     }
 
-    if(yflag == 0 && yVel != 0)
+    if(yflag == 0 && yVel != 0) {
 	if(abs(yVel) == 1) yVel = 0; 
 	else yVel -= (int)(yVel/2);
+    }
 
     // Move the dot up or down
     c.y += yVel;
@@ -321,48 +314,6 @@ void Tadpole::move(int swim)
 	c.y -= yVel;
 	yVel = 0;
     }
-
-/*    if(xVel != 0 || yVel != 0 )
-    {
-	if(yVel > 0)
-	    ud = 2;
-	else
-	    ud = 0;
-	tangent = abs(1.0*xVel/(1.0*yVel + 0.01));
-	if(tangent <= 0.1989)
-	{
-	    if(xVel > 0)
-		angl = 8;
-	    else
-		angl = 0;
-	}
-	else if(tangent <= 0.6682)
-	{
-	    if(xVel > 0)
-		angl = 7;
-	    else
-		angl = 1;
-	}
-	else if(tangent <= 1.4966)
-	{
-	    if(xVel > 0)
-		angl = 6;
-	    else
-		angl = 2;
-	}
-	else if(tangent <= 5.0273)
-	{
-	    if(xVel > 0)
-		angl = 5;
-	    else
-		angl = 3;
-	}
-	else
-	{ 
-	    angl = 4;
-	}
-    }
-*/
 
 
 	if(xflag < 0)
