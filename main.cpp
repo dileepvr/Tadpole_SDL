@@ -584,8 +584,17 @@ int main(int argc, char* argv[]) {
 	    
 	      if(myTad[i].TCP_limbo) {
 		myTad[i].spawn(buf, i);
-		sprintf(buf,"RGB%x%x%x",(tadcolor[i]>>16)&0xff,(tadcolor[i]>>8)&0xff,tadcolor[i]&0xff);
-		SDLNet_TCP_Send(myTad[i].socket,(void*)buf,7);
+		sprintf(buf,"RGB%2x%2x%2x",(tadcolor[i]>>16)&0xff,(tadcolor[i]>>8)&0xff,tadcolor[i]&0xff);
+		if(((tadcolor[i]>>16)&0xff) < 0x0f) {
+		  buf[3] = '0';
+		}
+		if(((tadcolor[i]>>8)&0xff) < 0x0f) {
+		  buf[5] = '0';
+		}
+		if((tadcolor[i]&0xff) < 0x0f) {
+		  buf[7] = '0';
+		}
+		SDLNet_TCP_Send(myTad[i].socket,(void*)buf,10);
 	      } else {
 		for(j = 0; j < receivedByteCount; j++) {
 		  // If client asked to quit by sending 'K' as first char
