@@ -584,11 +584,7 @@ int main(int argc, char* argv[]) {
 	    
 	      if(myTad[i].TCP_limbo) {
 		myTad[i].spawn(buf, i);
-		buf[0] = 'R'; buf[1] = 'G'; buf[2] = 'B';
-		buf[5] = tadcolor[i] & 0xFF;
-		buf[4] = (tadcolor[i] >> 8) & 0xFF;
-		buf[3] = (tadcolor[i] >> 16) & 0xFF;
-		buf[6] = '\0';
+		sprintf(buf,"RGB%x%x%x",(tadcolor[i]>>16)&0xff,(tadcolor[i]>>8)&0xff,tadcolor[i]&0xff);
 		SDLNet_TCP_Send(myTad[i].socket,(void*)buf,7);
 	      } else {
 		for(j = 0; j < receivedByteCount; j++) {
