@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <string>
 #include <math.h>
 #include <vector>
 
@@ -36,12 +37,14 @@ const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 // Server network stuff
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 BUFFER_SIZE = 64;
-IPaddress serverIP, *remoteip;
+IPaddress serverIP, servIP, *remoteip;
 Uint32 ipaddr;
-TCPsocket serverSocket;
-SDLNet_SocketSet socketSet;
+TCPsocket serverSocket, clientSocket;
+SDLNet_SocketSet socketSet, clientSet;
 int receivedByteCount = 0;
-char buf[BUFFER_SIZE+1];  
+char buf[BUFFER_SIZE+1];
+bool localplayer = false, localconn = false;
+char serverName[] = "localhost";
 
 int ntads = 0;              // Number of tads alive 
 
@@ -129,6 +132,9 @@ bool init() {
       return false;
     }
 
+    clientSet = SDLNet_AllocSocketSet(1);
+    SDLNet_ResolveHost(&servIP, serverName, PORT);
+    
     // open the server socket 
     serverSocket=SDLNet_TCP_Open(&serverIP);
     if(!serverSocket) {
@@ -358,7 +364,6 @@ bool draw_sidepanels() {
 #include "entities.h"	        // Stores entity class definitions (Tadpole, frog, fly)
 
 int main(int argc, char* argv[]) {
-
 
   bool running = true;
   int i, j, xfrog, yfrog, xfly, yfly, leech[MAX_PLAYERS], tadswim = 0, swavenum[MAX_PLAYERS], swave_clk[MAX_PLAYERS], cls, kk;
@@ -606,6 +611,38 @@ int main(int argc, char* argv[]) {
       
     }
 
+
+
+
+    // ********* Local client socket handling *********** //
+
+    if (localconn) {
+      if(SDLNet_CheckSockets(clientSet, 0) > 0) {
+	int serverResponseByteCount = SDLNet_TCP_Recv(clientSocket, buf, BUFFER_SIZE);
+	for(j=0; j<strlen(buf); j++) {
+	  if((serverResponseByteCount <= 0) || (buf[j] == 'X')) {
+#ifdef PRINT_MESSAGES
+	    printf("Server rejected local player!");
+#endif
+	    localconn = false;
+	    SDLNet_TCP_DelSocket(clientSet, clientSocket);
+	    break;
+	  } else if(buf[j] == 'N') {
+	    int namelen = strlen(Tadname) + 1;
+	    SDLNet_TCP_Send(clientSocket,(void*)Tadname,namelen);
+	    localplayer = true;
+	  } else if((buf[j] == 'D')||(buf[j]=='X')||(buf[j]=='C')||(buf[j]=='X')) {
+	    localconn = false;
+	    SDLNet_TCP_DelSocket(clientSet, clientSocket);	    
+	    localplayer = false;
+	    break;
+	  }
+	}
+      }
+    }
+      
+    
+    // *********** local keyboard events *********** //
     
     while(SDL_PollEvent ( &event )) {
 
@@ -614,29 +651,73 @@ int main(int argc, char* argv[]) {
 	  running = false;
 	}
 	if(event.key.keysym.sym == SDLK_RETURN) { // SPAWN NEW TAD
-	  i = 0;
-	  while(i<MAX_PLAYERS) {	  
-	    if(!myTad[i].alive) {
-	      myTad[i].spawn(Tadname, i);
-	      break;
-	    } else { i++; }
-	  }
-	  if(i == MAX_PLAYERS) {
-#ifdef PRINT_MESSAGES  
-	    printf("No free slots available.\n");
+	  if((!localplayer) && (!localconn)) {
+	    // Open local socket as controller
+#ifdef PRINT_MESSAGES
+	    printf("Opening local player socket.\n");
 #endif
+	    clientSocket = SDLNet_TCP_Open(&servIP);
+	    if(clientSocket != NULL) {
+	      localconn = true;
+	      SDLNet_TCP_AddSocket(clientSet, clientSocket);	      
+	    } else {
+#ifdef PRINT_MESSAGES
+	      printf("Local player connection rejected.\n");
+#endif	      
+	    }
+	  }
+	} else if (localplayer){
+	  switch(event.key.keysym.sym) {
+	  case SDLK_UP:
+	  case SDLK_w:
+	    SDLNet_TCP_Send(clientSocket,"1",2);
+	    break;
+	  case SDLK_DOWN:
+	  case SDLK_s:
+	    SDLNet_TCP_Send(clientSocket,"5",2);
+	    break;
+	  case SDLK_LEFT:
+	  case SDLK_a:
+	    SDLNet_TCP_Send(clientSocket,"7",2);
+	    break;
+	  case SDLK_RIGHT:
+	  case SDLK_d:
+	    SDLNet_TCP_Send(clientSocket,"3",2);
+	    break;
 	  }
 	}
       }
 
-  for(i=0; i<MAX_PLAYERS; i++) {      
-      if(myTad[i].alive) { myTad[i].handle_input('0'); }
-  }
+
+      if(event.type == SDL_KEYUP) {
+	if (localplayer){
+	  switch(event.key.keysym.sym) {
+	  case SDLK_UP:
+	  case SDLK_w:
+	    SDLNet_TCP_Send(clientSocket,"2",2);
+	    break;
+	  case SDLK_DOWN:
+	  case SDLK_s:
+	    SDLNet_TCP_Send(clientSocket,"6",2);
+	    break;
+	  case SDLK_LEFT:
+	  case SDLK_a:
+	    SDLNet_TCP_Send(clientSocket,"8",2);
+	    break;
+	  case SDLK_RIGHT:
+	  case SDLK_d:
+	    SDLNet_TCP_Send(clientSocket,"4",2);
+	    break;
+	  }
+	}	
+      }      
       
       if(event.type == SDL_QUIT) running = false;
       
     }
 
+
+    
 
 //***************** Tad-Tad collisions ****************//    
 #ifdef TADPOLE_COLLISIONS
@@ -981,6 +1062,7 @@ int main(int argc, char* argv[]) {
   printf("Server shutting down!\n");
 #endif
 
+  if(localplayer || localconn) { SDLNet_TCP_Close(clientSocket); }
   // Free socket set
   SDLNet_FreeSocketSet(socketSet);
   // Close server socket
