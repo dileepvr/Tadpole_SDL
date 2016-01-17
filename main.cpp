@@ -1,6 +1,8 @@
 //#define WITH_SOUND
 #define PRINT_MESSAGES
+//#define SERVER_DEBUG
 #define TADPOLE_COLLISIONS
+//#define LEECH_LIFE_ABOVE_10
 
 #ifdef WITH_SOUND
 #include "/usr/include/SDL/SDL_mixer.h"
@@ -34,6 +36,8 @@ int SCREEN_BPP = 32;		// Bits per pixel
 
 const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 
+const int MAX_NAME_LENGTH = 20;
+
 // Server network stuff
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 BUFFER_SIZE = 64;
@@ -46,7 +50,10 @@ char buf[BUFFER_SIZE+1];
 bool localplayer = false, localconn = false;
 char serverName[] = "localhost";
 
-int ntads = 0;              // Number of tads alive 
+int leaderboard_rank[MAX_PLAYERS];
+
+int ntads = 0;         // Number of tads reserved (including alive)
+int nalive = 0;        // Number of live tads in play
 
 int txtoffset = (int)(HISCORE_WIDTH/20);
 
@@ -58,7 +65,6 @@ const int FRAMES_PER_SECOND = 30;
 
 SDL_Surface *screen;
 SDL_Surface *message;
-
 SDL_Surface *player1;
 SDL_Surface *frog;
 SDL_Surface *fly;
@@ -369,7 +375,7 @@ int main(int argc, char* argv[]) {
   int i, j, xfrog, yfrog, xfly, yfly, leech[MAX_PLAYERS], tadswim = 0, swavenum[MAX_PLAYERS], swave_clk[MAX_PLAYERS], cls, kk;
   float dist;
   int nfrogs = 10; // Number of frogs
-  int sp = 3;    // Speed (1-3)
+  int sp = 2;    // Speed (1-3)
   int a_i = 3;  // AI (1-3)
   bool local_player = false;
 
@@ -392,6 +398,7 @@ int main(int argc, char* argv[]) {
     leech[i] = 0;
     swavenum[i] = 0;
     swave_clk[i] = 0;
+    leaderboard_rank[i] = -1;
   }
   
   int bwavenum = 0, bwave_clk, mm_clk = 0, suwavenum = 0, suwave_clk = 0;  // various wave clocks and wave counters (storing latest wave to be animated)
@@ -400,8 +407,8 @@ int main(int argc, char* argv[]) {
   int tadflip = 0, mmtadx = SCREEN_WIDTH/2, mmtady = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
 
   float ran; // random number storing
-  char caption[32];
   char Tadname[100];
+
 
   strcpy(Tadname,"Player 0"); // Name of local player
 
@@ -460,11 +467,6 @@ int main(int argc, char* argv[]) {
   }
 
 
-
-  for(i=0; i<MAX_PLAYERS; i++) {  
-    myTad[i].show();
-  }
-
   for(i=0; i<nfrogs; i++)
     myfrogs[i].show(sp);
 
@@ -519,13 +521,13 @@ int main(int argc, char* argv[]) {
 	  // get clients IP
 	  remoteip = SDLNet_TCP_GetPeerAddress(myTad[freeSpot].socket);
 	  if(!remoteip) {
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	    printf("SDLNet_TCP_GetPeerAddress: %s\n",SDLNet_GetError());
 #endif
 	    // No remote ip?! NO CONNECTION!
 	    SDLNet_TCP_Close(myTad[freeSpot].socket);	  
 	  } else {
-#ifdef PRINT_MESSAGES	  
+#ifdef SERVER_DEBUG	  
 	    ipaddr=SDL_SwapBE32(remoteip->host);
 	    printf("Accepted a connection from %d.%d.%d.%d port %hu.",
 		   ipaddr>>24,
@@ -545,7 +547,7 @@ int main(int argc, char* argv[]) {
 	    SDLNet_TCP_Send(myTad[freeSpot].socket,(void*)buf,2);
 	  }
 	} else { // No new room for clients
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	  printf("No room. Rejecting client.\n");
 #endif
 	  // Accept client connection to clear it from incoming list
@@ -565,25 +567,36 @@ int main(int argc, char* argv[]) {
 	  receivedByteCount = SDLNet_TCP_Recv(myTad[i].socket,buf,BUFFER_SIZE);
 	  // If activity, but no data, then assume disconnection
 	  if(receivedByteCount <= 0) {
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	    printf("Client %d disconnected. Now there are %d clients.\n", i, ntads-1);
 #endif
 	    // Close connection
 	    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
 	    myTad[i].kill();
+	    for(kk=0; kk<MAX_PLAYERS; kk++) {
+	      if(myTad[kk].alive) {
+		if(leaderboard_rank[kk] > leaderboard_rank[i]) {
+		  leaderboard_rank[kk]--;
+		}
+	      }
+	    }
+	    leaderboard_rank[i] = -1;
 	    ntads--;
+	    nalive--;
 	  } else { // Got message from client
 	    buf[receivedByteCount] = '\0';
 	    if((buf[receivedByteCount-1] == '\r') || (buf[receivedByteCount-1] == '\n')) {
 	      buf[receivedByteCount-1] = '\0';	      
 	    }
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	    printf("Client: %d sent: %s.\n", i, buf);
 #endif
-	    if(isalnum(buf[0]) != 0) {
+	    if((isalnum(buf[0]) != 0)||(buf[0]=='[')||(buf[0]=='|')) {
 	    
 	      if(myTad[i].TCP_limbo) {
+		buf[MAX_NAME_LENGTH] = '\0';
 		myTad[i].spawn(buf, i);
+		leaderboard_rank[i] = nalive++;
 		sprintf(buf,"RGB%2x%2x%2x",(tadcolor[i]>>16)&0xff,(tadcolor[i]>>8)&0xff,tadcolor[i]&0xff);
 		if(((tadcolor[i]>>16)&0xff) < 0x0f) {
 		  buf[3] = '0';
@@ -599,7 +612,7 @@ int main(int argc, char* argv[]) {
 		for(j = 0; j < receivedByteCount; j++) {
 		  // If client asked to quit by sending 'K' as first char
 		  if(buf[j] == 'K') {
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 		    printf("Client %d asked to be disconnected. Now there are %d clients.\n", i, ntads-1);
 #endif
 		    // Send 'D' telling that server is killing client
@@ -608,6 +621,15 @@ int main(int argc, char* argv[]) {
 		    // Close connection
 		    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
 		    myTad[i].kill();
+		    for(kk=0; kk<MAX_PLAYERS; kk++) {
+		      if(myTad[kk].alive) {
+			if(leaderboard_rank[kk] > leaderboard_rank[i]){
+			  leaderboard_rank[kk]--;
+			}
+		      }
+		    }
+		    leaderboard_rank[i] = -1;		    
+		    nalive--;
 		    ntads--;
 		    break;
 		  } else {
@@ -632,7 +654,7 @@ int main(int argc, char* argv[]) {
 	int serverResponseByteCount = SDLNet_TCP_Recv(clientSocket, buf, BUFFER_SIZE);
 	for(j=0; j<strlen(buf); j++) {
 	  if((serverResponseByteCount <= 0) || (buf[j] == 'X')) {
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	    printf("Server rejected local player!");
 #endif
 	    localconn = false;
@@ -664,7 +686,7 @@ int main(int argc, char* argv[]) {
 	if(event.key.keysym.sym == SDLK_RETURN) { // SPAWN NEW TAD
 	  if((!localplayer) && (!localconn)) {
 	    // Open local socket as controller
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	    printf("Opening local player socket.\n");
 #endif
 	    clientSocket = SDLNet_TCP_Open(&servIP);
@@ -672,7 +694,7 @@ int main(int argc, char* argv[]) {
 	      localconn = true;
 	      SDLNet_TCP_AddSocket(clientSet, clientSocket);	      
 	    } else {
-#ifdef PRINT_MESSAGES
+#ifdef SERVER_DEBUG
 	      printf("Local player connection rejected.\n");
 #endif	      
 	    }
@@ -911,12 +933,13 @@ int main(int argc, char* argv[]) {
       }
     }
 
+#ifdef LEECH_LIFE_ABOVE_10
+
     for(kk=0; kk<MAX_PLAYERS; kk++) {
       if(myTad[kk].alive) {    
 	if(myTad[kk].hpoints <= 10) {
 	  leech[kk] = gameclock.get_ticks();
 	}
-
 	if( (gameclock.get_ticks() - leech[kk]) >= 5000 ) {
 	  leech[kk] = gameclock.get_ticks();
 	  if(myTad[kk].hpoints > 10)
@@ -925,6 +948,8 @@ int main(int argc, char* argv[]) {
       }
     }
 
+#endif
+    
     for(i=0; i<nfrogs; i++) {
       if(myfrogs[i].jumpstate == 1) {
 	bigwaves[bwavenum][0] = -1;
@@ -979,62 +1004,69 @@ int main(int argc, char* argv[]) {
 
     
     // Kill dead tadpoles
-  for(i=0;i<MAX_PLAYERS;i++) {    
-    if((myTad[i].hpoints <= 0) && myTad[i].alive) {
-      // Send 'D' telling that Tadpole has died
-      strcpy(buf,"D");
-      SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
-      // Close connection
-      SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
-      myTad[i].kill();
-      ntads--;		
+    for(i=0;i<MAX_PLAYERS;i++) {    
+      if((myTad[i].hpoints <= 0) && myTad[i].alive) {
+	// Send 'D' telling that Tadpole has died
+	strcpy(buf,"D");
+	SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
+	// Close connection
+	SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+	myTad[i].kill();
+	for(kk=0; kk<MAX_PLAYERS; kk++) {
+	  if(myTad[kk].alive) {
+	    if(leaderboard_rank[kk] > leaderboard_rank[i]) {
+	      leaderboard_rank[kk]--;
+	    }
+	  }
+	}
+	leaderboard_rank[i] = -1;	
+	nalive--;
+	ntads--;		
+      }
     }
-  }
 
     
     // ************** DRAW STUFF ***********************//
     // Make screen white
-  SDL_FillRect( screen, &screen->clip_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
+    SDL_FillRect( screen, &screen->clip_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
     
-  for(i=0;i<MAX_PLAYERS;i++) {
-    if(myTad[i].alive) {
-      for(j=0; j<NUMWAVES; j++){
-	if(smallwaves[i][j][0] != 6){
-	  apply_surface(smallwaves[i][j][1], smallwaves[i][j][2], waves_small, screen, &swaveclips[smallwaves[i][j][0]]);
+    for(i=0;i<MAX_PLAYERS;i++) {
+      if(myTad[i].alive) {
+	for(j=0; j<NUMWAVES; j++){
+	  if(smallwaves[i][j][0] != 6){
+	    apply_surface(smallwaves[i][j][1], smallwaves[i][j][2], waves_small, screen, &swaveclips[smallwaves[i][j][0]]);
+	  }
 	}
       }
     }
-  }
 
-  for(j=0; j<NUMWAVES; j++){
-    if(bigwaves[j][0] != 24){
-      apply_surface(bigwaves[j][1], bigwaves[j][2], waves_big, screen, &bwaveclips[bigwaves[j][0]]);
+    for(j=0; j<NUMWAVES; j++){
+      if(bigwaves[j][0] != 24){
+	apply_surface(bigwaves[j][1], bigwaves[j][2], waves_big, screen, &bwaveclips[bigwaves[j][0]]);
+      }
+      if(suwaves[j][0] != 24){
+	apply_surface(suwaves[j][1], suwaves[j][2], waves_super, screen, &suwaveclips[suwaves[j][0]]);
+      }
     }
-    if(suwaves[j][0] != 24){
-      apply_surface(suwaves[j][1], suwaves[j][2], waves_super, screen, &suwaveclips[suwaves[j][0]]);
-    }
-  }
-
-
-  for(i=0;i<MAX_PLAYERS;i++) {
-    myTad[i].show();
-  }
-    
-  for(i=0; i<nfrogs; i++)
-    myfrogs[i].show(sp);
-
-  if(myfly.spawn == 1)
-    myfly.show();
-
 
     // Draw the leader board stuff
     if(!draw_sidepanels()) running = false;
-    
-    if(SDL_Flip(screen) == -1) return false;
-    sprintf(caption,"Hit Points = %d", myTad[0].hpoints);
-    SDL_WM_SetCaption(caption, NULL);
 
-        // Wait for next frame render time
+
+    for(i=0;i<MAX_PLAYERS;i++) {
+      myTad[i].show(leaderboard_rank[i]);
+    }
+    
+    for(i=0; i<nfrogs; i++)
+      myfrogs[i].show(sp);
+
+    if(myfly.spawn == 1)
+      myfly.show();
+
+
+    if(SDL_Flip(screen) == -1) return false;
+
+    // Wait for next frame render time
     if(fps.get_ticks() < (1000 / FRAMES_PER_SECOND)){
       SDL_Delay((1000/FRAMES_PER_SECOND) - fps.get_ticks());
     }
@@ -1062,8 +1094,9 @@ int main(int argc, char* argv[]) {
       // Close connection
       SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
       myTad[i].kill();
+      nalive--;
       ntads--;      
-#ifdef PRINT_MESSAGES  
+#ifdef SERVER_DEBUG
       printf("Client %d has been disconnected.\n", i);
 #endif
     }

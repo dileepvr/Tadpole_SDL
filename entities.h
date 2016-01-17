@@ -64,20 +64,29 @@ class Tadpole
 {
     private:
 
+    // Sprite
+    SDL_Surface* sprite;
+
+    // Leader board name in font
+    SDL_Surface* boardname;
+    SDL_Surface* boardtime;    
+
     // Sprite Markers
     int angl, ud, tadswim;
+
+    // Avatar rectangle
+    SDL_Rect avatar_rect;
+    SDL_Rect health_rect;    
+    int base_h;
 
     public:
 
     // Name
-    char name[16];
+    char* name;
 
     // TCP socket
     TCPsocket socket;
     bool TCP_limbo;
-
-    // Sprite
-    SDL_Surface* sprite;
 
     // Color
     Uint32 color;
@@ -116,15 +125,12 @@ class Tadpole
     void move(int swim);
 
     // Shows the Tadpole on the screen
-    void show();
+    void show(int rank);
 };
 
 
 Tadpole::Tadpole()
 {
-
-  // clear name
-  memset(name,0,sizeof(name));
 
   // Initialize client socket
   socket = NULL;
@@ -134,6 +140,11 @@ Tadpole::Tadpole()
     angl = 4;
     ud = 0;
     tadswim = 0;
+    avatar_rect.x = 2; avatar_rect.y = 0;
+    avatar_rect.w = 30; avatar_rect.h = 30;
+    health_rect.x = 35; health_rect.y = 0;
+    health_rect.w = 100; health_rect.h = 5;
+    base_h = BANNER_HEIGHT + 20;
 
     hpoints = 0;
     alive = false;
@@ -156,9 +167,12 @@ Tadpole::Tadpole()
 
 void Tadpole::spawn(char* playername, int tadnum)
 {
+
+  name = (char *)malloc(sizeof(playername));
   strcpy(name, playername);
-  //  memset(name+15,0,1);
-  name[15] = '\0';
+
+  boardname = TTF_RenderText_Solid(regfont,name,redcolor);
+  
   TCP_limbo = false;
 
   if((tadnum > -1) && (tadnum < 32)) {
@@ -177,7 +191,7 @@ void Tadpole::spawn(char* playername, int tadnum)
   age_clock.start();
 
 #ifdef PRINT_MESSAGES  
-  printf("%s has joined the game.\n",name);
+  printf("Player: %s has joined the game.\n",name);
 #endif
   
 }
@@ -195,8 +209,12 @@ void Tadpole::kill()
   socket = NULL;
   alive = false;
   TCP_limbo = false;	    
-  
+
+  free(name);
   SDL_FreeSurface(sprite);
+  SDL_FreeSurface(boardname);
+  SDL_FreeSurface(boardtime);
+  
   // Initialize sprite markers
   angl = 4;
   ud = 0;
@@ -408,11 +426,23 @@ void Tadpole::move(int swim)
 
 }
 
-void Tadpole::show()
+void Tadpole::show(int rank)
 {
     // Show the Tadpole
   if (alive) {
     apply_surface( c.x - c.r, c.y - c.r, sprite, screen, &tadclip[angl][ud] );
+    // Leader board stuff
+    avatar_rect.y = base_h + rank*35; // rank 0 is better than 1
+    SDL_FillRect( screen, &avatar_rect, SDL_MapRGB(screen->format, 0xFF,0xFF,0xFF) );
+    apply_surface( avatar_rect.x+2, avatar_rect.y+5, sprite, screen, &tadclip[angl][ud] );
+    apply_surface( avatar_rect.x+50, avatar_rect.y, boardname, screen, NULL );
+    char temp[6];
+    sprintf(temp,"%4.1f",1.0*age_clock.get_ticks()/1000);
+    boardtime = TTF_RenderText_Solid(regfont,temp,redcolor);
+    apply_surface( LEADER_WIDTH-70, avatar_rect.y, boardtime, screen, NULL );
+    health_rect.y = avatar_rect.y + 25;
+    health_rect.w = (int)((LEADER_WIDTH-70)*hpoints/20);
+    SDL_FillRect( screen, &health_rect, SDL_MapRGB(screen->format, 0xFF,(Uint8)(255*hpoints/20),(Uint8)(255*hpoints/20)) );    
   }
 }
 
