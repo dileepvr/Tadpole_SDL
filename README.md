@@ -33,4 +33,6 @@ To spawn a controllable tadpole,
 7. To kill Tadpole, send 'K'. Server replies with 'D'.
 8. Everytime Tadpole hitpoints change, server sends \HXX\, where \XX\ encodes current hitpoint count.
 9. Server sends 'D' and closes connection when Tadpole dies.
-	    10. Server sends 'C' and closes connection when shutting down.
+10. Server sends 'C' and closes connection when shutting down.
+
+The game can be played as a single player game. To spawn locally (keyboard) controlled tadpole, just it enter. The name is set inside main.cpp. Arrow keys control movement, and pressing 'k' key will force kill.
