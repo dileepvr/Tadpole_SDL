@@ -56,8 +56,6 @@ bool check_collision2( Circle &A, std::vector<SDL_Rect> &B )
     return false;
 }
 
-
-
 // *************************** Tadpole definition ********************************** //
 
 class Tadpole

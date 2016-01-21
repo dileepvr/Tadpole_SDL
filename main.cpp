@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <string>
+#include <sstream>
 #include <math.h>
 #include <vector>
 
@@ -24,31 +25,38 @@
 #include "mysdl_images.h"
 #include "mysdl_timer.h"
 #include "tadclips.h"		// Storing sprite frames
+#include "ipaddr.h"
 
-
-//int SCREEN_WIDTH = 1680; int SCREEN_HEIGHT = 1020;
-int SCREEN_WIDTH = 1920; int SCREEN_HEIGHT = 1030;
-int LEADER_WIDTH = (int)(0.2265625*SCREEN_WIDTH);//435;
-int HISCORE_WIDTH = LEADER_WIDTH;
-int HI_X_OFFSET = (int)(0.773475*SCREEN_WIDTH);//1245;
-int BANNER_HEIGHT = (int)(0.03906*SCREEN_WIDTH);//75;
-int SCREEN_BPP = 32;		// Bits per pixel
-
-const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
+//const int SCREEN_WIDTH = 1680; const int SCREEN_HEIGHT = 1020;
+const int SCREEN_WIDTH = 1920; const int SCREEN_HEIGHT = 1030;
 
 const int MAX_NAME_LENGTH = 20;
+const int DOT_HEIGHT = 20;  		// Size of player
+const int DOT_WIDTH = 20;
+const int FRAMES_PER_SECOND = 30;
+const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 
 // Server network stuff
+const char ETHERNET_INTERFACE[] = "eth0";
 const Uint16 PORT = 13370;         // Port to listen on for tcp
+const Uint16 HELPPORT = 13371;         // Help port
+const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
 const Uint16 BUFFER_SIZE = 64;
 IPaddress serverIP, servIP, *remoteip;
 Uint32 ipaddr;
-TCPsocket serverSocket, clientSocket;
+TCPsocket serverSocket, helpSocket, clientSocket;
 SDLNet_SocketSet socketSet, clientSet;
 int receivedByteCount = 0;
 char buf[BUFFER_SIZE+1];
 bool localplayer = false, localconn = false;
 char serverName[] = "localhost";
+
+const int LEADER_WIDTH = (int)(0.2265625*SCREEN_WIDTH);//435;
+const int HISCORE_WIDTH = LEADER_WIDTH;
+const int HI_X_OFFSET = (int)(0.773475*SCREEN_WIDTH);//1245;
+const int BANNER_HEIGHT = (int)(0.03906*SCREEN_WIDTH);//75;
+const int SCREEN_BPP = 32;		// Bits per pixel
+
 
 int leaderboard_rank[MAX_PLAYERS];
 
@@ -57,11 +65,11 @@ int nalive = 0;        // Number of live tads in play
 
 int txtoffset = (int)(HISCORE_WIDTH/20);
 
-int DOT_HEIGHT = 20;  		// Size of player
-int DOT_WIDTH = 20;
 
+std::stringstream tempchar2, tempchar3, tempchar4;
 
-const int FRAMES_PER_SECOND = 30;
+char* reply;
+
 
 SDL_Surface *screen;
 SDL_Surface *message;
@@ -100,7 +108,7 @@ int smallwaves[MAX_PLAYERS][NUMWAVES][3];
 int bigwaves[NUMWAVES][3];
 int suwaves[NUMWAVES][3];
 
-SDL_Color redcolor = {0xFF, 0, 0};
+const SDL_Color redcolor = {0xFF, 0, 0};
 Uint32 tadcolor[32];
 Uint32 transcolor;
 
@@ -108,7 +116,23 @@ SDL_Rect leader_rect = {0, BANNER_HEIGHT, LEADER_WIDTH, SCREEN_HEIGHT-BANNER_HEI
 SDL_Rect hiscore_rect = {HI_X_OFFSET, BANNER_HEIGHT, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
 SDL_Rect banner_rect = {LEADER_WIDTH, 0, SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH, BANNER_HEIGHT};
 
+class hiscore_entry {
+  private:
+  public:
+    char* name;
+    int time;
+};
+
+std::vector<hiscore_entry> hiscores(32);
+
+
 bool init() {
+
+  char *tempchar;
+  GetIP(ETHERNET_INTERFACE,tempchar);
+  tempchar2 << "CONTROLLER HTTP:// " << tempchar << " : 3000";
+  tempchar3 << "HELP TEXT HTTP:// " << tempchar << " : " << HELPPORT;  
+  
     if(SDL_Init(SDL_INIT_EVERYTHING) == -1) {
 	printf("error: SDL failed to intitialize.\n");
     	return false;
@@ -121,7 +145,7 @@ bool init() {
     }
 
     // Create socketset with enough space allocated for connections
-    socketSet = SDLNet_AllocSocketSet(MAX_PLAYERS+1);
+    socketSet = SDLNet_AllocSocketSet(MAX_PLAYERS+2);
     if(socketSet == NULL) {
       printf("Failed to allocate the socket set: %s\n",
 	     SDLNet_GetError());
@@ -155,6 +179,60 @@ bool init() {
     
     // Add server socket to socket set
     SDLNet_TCP_AddSocket(socketSet, serverSocket);
+
+    // Setup help server
+    if(SDLNet_ResolveHost(&serverIP,NULL,HELPPORT)==-1) {
+      printf("SDLNet_ResolveHost: %s\n",SDLNet_GetError());
+      return false;
+    }
+
+    // open the help socket 
+    helpSocket=SDLNet_TCP_Open(&serverIP);
+    if(!helpSocket) {
+      printf("SDLNet_TCP_Open: %s\n",SDLNet_GetError());
+      return false;
+    }
+    
+    // Add help socket to socket set
+    SDLNet_TCP_AddSocket(socketSet, helpSocket);
+
+    reply = (char*)malloc(sizeof(char)*1600);
+    sprintf(reply,"HTTP/1.1 200 OK\n"
+"ETag: \"56d-9989200-1132c580\"\n"
+"Content-Type: text/html\n"
+"Content-Length: 1475\n"
+"Accept-Ranges: bytes\n"
+"Connection: close\n"
+"\n"
+"Welcome to Tadpole_SDL.<br>"
+"A game by Dileep V. Reddy.<br>"
+"Network controller written in collaboration with Wes Erickson.<br>"
+"The project and license details can be found at:<br>"
+"https://github.com/dileepvr/Tadpole_SDL<br>"
+"https://github.com/inflamedspirit/Tadpole_Controller<br><br>"
+"To join the game using our Javascript controller, simply visit %s:%d.<br><br>"
+"To write your own custom controller, follow the protocol below:<br><br>"
+"Tadpole server is listening for connections on port %d.<br>"
+"To spawn a controllable tadpole,<br><br>"
+"1. Open a TCP connection to %s:%d<br><br>"
+"2. If a spot is not available, server sends 'X' and disconnects.<br><br>"
+"3. If spot is available, server sends 'N'.<br><br>"
+"4. Respond with desired player name.<br><br>"
+"5. Server sends \"RGBXXYYZZ\", where \"XXYYZZ\" are the RGB color values in hex (as a string). The Tadpole should be visible on screen.<br><br>"
+"6. To control Tadpole, send the following characters:<br><br>"
+"'1' = Up-key-pressed<br>"
+"'2' = Up-key-released<br>"
+"'3' = Right-key-pressed<br>"
+"'4' = Right-key-released<br>"
+"'5' = Down-key-pressed<br>"
+"'6' = Down-key-released<br>"
+"'7' = Left-key-pressed<br>"
+"'8' = Left-key-released<br><br>"
+"7. To kill Tadpole, send 'K'. Server replies with 'D'.<br><br>"
+"8. Everytime Tadpole hitpoints change, server sends \"HXX\", where \"XX\" encodes current hitpoint count.<br><br>"
+"9. Server sends 'D' and closes connection when Tadpole dies.<br><br>"
+	    "10. Server sends 'C' and closes connection when shutting down.",tempchar,JAVAPORT,PORT,tempchar,PORT);
+
     
     screen = SDL_SetVideoMode( SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, SDL_SWSURFACE);
     if(screen == NULL) {
@@ -295,6 +373,8 @@ bool load_files() {
 
 void clean_up() {
 
+  free(reply);
+
   SDL_FreeSurface(screen);
   SDL_FreeSurface(message);
   SDL_FreeSurface(player1);
@@ -335,7 +415,6 @@ void clean_up() {
   
 }
 
-
 bool draw_sidepanels() {
 
   Uint32 black_clr = SDL_MapRGB(screen->format, 0,0,0);
@@ -355,16 +434,30 @@ bool draw_sidepanels() {
   message = TTF_RenderText_Solid(bigfont, "TO JOIN GAME:", redcolor);
   apply_surface(LEADER_WIDTH+(int)(txtoffset/2), txtoffset, message, screen, NULL);
 
-  message = TTF_RenderText_Solid(regfont, "TADPOLE_WIFI , THEN HTTP://TADPOLE", redcolor);
+  message = TTF_RenderText_Solid(regfont, tempchar2.str().c_str(), redcolor);
   apply_surface(LEADER_WIDTH+23*txtoffset, (int)(0.75*txtoffset), message, screen, NULL);
 
 
-  message = TTF_RenderText_Solid(regfont, "APIs AVAILABLE: HTTP://TADPOLE/API", redcolor);
+  message = TTF_RenderText_Solid(regfont, tempchar3.str().c_str(), redcolor);
   apply_surface(LEADER_WIDTH+23*txtoffset, (int)(3*0.75*txtoffset), message, screen, NULL);
+
+  for(int loop2 = 0; loop2 < 32; loop2++) {
+    tempchar4.str(" ");
+    tempchar4 << hiscores[loop2].name;
+    message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+    apply_surface(HI_X_OFFSET+20, BANNER_HEIGHT+10+loop2*30, message, screen, NULL);
+    tempchar4.str(" ");
+    char temp[4];
+    sprintf(temp,"%4d",hiscores[loop2].time);
+    tempchar4 << temp;
+    message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+    apply_surface(SCREEN_WIDTH-70, BANNER_HEIGHT+10+loop2*30, message, screen, NULL);    
+  }
   
   return true;
   
 }
+
 
 // include this late. Requires definitions (I didn't plan this out well)
 #include "entities.h"	        // Stores entity class definitions (Tadpole, frog, fly)
@@ -377,8 +470,45 @@ int main(int argc, char* argv[]) {
   int nfrogs = 10; // Number of frogs
   int sp = 2;    // Speed (1-3)
   int a_i = 3;  // AI (1-3)
-  bool local_player = false;
+  FILE *fp;
 
+  // Open hiscores.txt
+
+  if((fp = fopen("hiscores.txt","r")) == NULL) {
+    printf("Can't find file: hiscores.txt\n");
+    return 1;
+  }
+
+  for(kk = 0; kk < 32; kk++) {
+    hiscores[kk].name = (char*)malloc(MAX_NAME_LENGTH*sizeof(char));
+    hiscores[kk].time = 0;
+  }
+
+  
+  int ret = 1;
+  kk = 0;
+  while(ret != EOF) {
+    ret = fscanf(fp,"%s %d", hiscores[kk].name, &hiscores[kk].time);
+    kk++;
+  }
+
+  // Close hiscores.txt
+  fclose(fp);
+  /*
+  // Bubble sort
+  for(i=0; i<31; i++) {
+    for(j=31; j > i; j--) {
+      if(hiscores[j].time > hiscores[j-1].time) {
+	strcpy(buf,hiscores[j-1].name);
+	kk = hiscores[j-1].time;
+	strcpy(hiscores[j-1].name,hiscores[j].name);
+	hiscores[j-1].time = hiscores[j].time;
+	strcpy(hiscores[j].name,buf);
+	hiscores[j].time = kk;
+      }
+    }
+  }
+  */
   
 #ifdef TADPOLE_COLLISIONS  
 
@@ -407,10 +537,10 @@ int main(int argc, char* argv[]) {
   int tadflip = 0, mmtadx = SCREEN_WIDTH/2, mmtady = SCREEN_HEIGHT/2+BANNER_HEIGHT/2;
 
   float ran; // random number storing
-  char Tadname[100];
+  char Tadname[MAX_NAME_LENGTH];
 
 
-  strcpy(Tadname,"Player 0"); // Name of local player
+  strcpy(Tadname,"Player_0"); // Name of local player, no spaces
 
   set_frogclips();
   set_tadclips();
@@ -500,6 +630,17 @@ int main(int argc, char* argv[]) {
     int numActiveSockets = SDLNet_CheckSockets(socketSet, 0);
 
     if(numActiveSockets > 0) {
+
+      // Check help socket. If activity detected, then open temporary socket and dump help text. Then close socket.
+      int helpSocketActivity = SDLNet_SocketReady(helpSocket);
+      if(helpSocketActivity != 0) {
+	TCPsocket tempSock = SDLNet_TCP_Accept(helpSocket);
+	SDLNet_TCP_Send(tempSock,(void*)reply,strlen(reply)+1);
+	// Close temporary connection
+	SDLNet_TCP_Close(tempSock);
+      }
+
+      
       // Check if our server socket has received any data
       // Note: SocketReady can only be called on a socket which is part of a set and that has CheckSockets called on it (the set, that is)
       // SDLNet_SocketRead returns non-zero for activity, and zero is returned for no activity.
@@ -572,6 +713,24 @@ int main(int argc, char* argv[]) {
 #endif
 	    // Close connection
 	    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+	    if(strcmp(myTad[i].name,Tadname)==0) {
+	      localplayer = false;
+	    }
+	    if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	      hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
+	      strcpy(hiscores[31].name,myTad[i].name);
+	      // Bubble sort
+	      for(j=31; j > 0; j--) {
+		if(hiscores[j].time > hiscores[j-1].time) {
+		  strcpy(buf,hiscores[j-1].name);
+		  kk = hiscores[j-1].time;
+		  strcpy(hiscores[j-1].name,hiscores[j].name);
+		  hiscores[j-1].time = hiscores[j].time;
+		  strcpy(hiscores[j].name,buf);
+		  hiscores[j].time = kk;
+		}
+	      }
+	      }
 	    myTad[i].kill();
 	    for(kk=0; kk<MAX_PLAYERS; kk++) {
 	      if(myTad[kk].alive) {
@@ -591,10 +750,15 @@ int main(int argc, char* argv[]) {
 #ifdef SERVER_DEBUG
 	    printf("Client: %d sent: %s.\n", i, buf);
 #endif
-	    if((isalnum(buf[0]) != 0)||(buf[0]=='[')||(buf[0]=='|')) {
+	    if(buf[0]!='\n') {
 	    
 	      if(myTad[i].TCP_limbo) {
 		buf[MAX_NAME_LENGTH] = '\0';
+		for(kk=0;kk<MAX_NAME_LENGTH; kk++) {
+		  if((buf[kk] == ' ')||(buf[kk] == '\t')) {
+		    buf[kk] = '_';
+		  }
+		}
 		myTad[i].spawn(buf, i);
 		leaderboard_rank[i] = nalive++;
 		sprintf(buf,"RGB%2x%2x%2x",(tadcolor[i]>>16)&0xff,(tadcolor[i]>>8)&0xff,tadcolor[i]&0xff);
@@ -620,6 +784,24 @@ int main(int argc, char* argv[]) {
 		    SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
 		    // Close connection
 		    SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+		    if(strcmp(myTad[i].name,Tadname)==0) {
+		      localplayer = false;
+		    }
+		    if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+		      hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
+		      strcpy(hiscores[31].name,myTad[i].name);
+		      // Bubble sort
+		      for(j=31; j > 0; j--) {
+			if(hiscores[j].time > hiscores[j-1].time) {
+			  strcpy(buf,hiscores[j-1].name);
+			  kk = hiscores[j-1].time;
+			  strcpy(hiscores[j-1].name,hiscores[j].name);
+			  hiscores[j-1].time = hiscores[j].time;
+			  strcpy(hiscores[j].name,buf);
+			  hiscores[j].time = kk;
+			}
+		      }
+		      }
 		    myTad[i].kill();
 		    for(kk=0; kk<MAX_PLAYERS; kk++) {
 		      if(myTad[kk].alive) {
@@ -716,6 +898,9 @@ int main(int argc, char* argv[]) {
 	  case SDLK_RIGHT:
 	  case SDLK_d:
 	    SDLNet_TCP_Send(clientSocket,"3",2);
+	    break;
+	  case SDLK_k:
+	    SDLNet_TCP_Send(clientSocket,"K",2);
 	    break;
 	  }
 	}
@@ -849,6 +1034,9 @@ int main(int argc, char* argv[]) {
 	      myTad[kk].hpoints += 2;
 	    else if(myTad[kk].hpoints == 19)
 	      myTad[kk].hpoints += 1;
+	    sprintf(buf,"H%2d",myTad[kk].hpoints);
+	    if(myTad[kk].hpoints < 10) buf[1] = '0';
+	    SDLNet_TCP_Send(myTad[kk].socket,(void*)buf,4);
 	    flyspan.start();
 	    suwaves[suwavenum][0] = -1;
 	    suwaves[suwavenum][1] = myfly.c.x - 150;
@@ -920,6 +1108,9 @@ int main(int argc, char* argv[]) {
 	  Mix_PlayChannel(-1, damage, 0);
 #endif
 	  myTad[kk].hpoints--;
+	  sprintf(buf,"H%2d",myTad[kk].hpoints);
+	  if(myTad[kk].hpoints < 10) buf[1] = '0';
+	  SDLNet_TCP_Send(myTad[kk].socket,(void*)buf,4);
 	}
       }
     }
@@ -942,8 +1133,12 @@ int main(int argc, char* argv[]) {
 	}
 	if( (gameclock.get_ticks() - leech[kk]) >= 5000 ) {
 	  leech[kk] = gameclock.get_ticks();
-	  if(myTad[kk].hpoints > 10)
+	  if(myTad[kk].hpoints > 10) {
 	    myTad[kk].hpoints--;
+	    sprintf(buf,"H%2d",myTad[kk].hpoints);
+	    if(myTad[kk].hpoints < 10) buf[1] = '0';
+	    SDLNet_TCP_Send(myTad[kk].socket,(void*)buf,4);
+	  }
 	}
       }
     }
@@ -1011,6 +1206,24 @@ int main(int argc, char* argv[]) {
 	SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
 	// Close connection
 	SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+	if(strcmp(myTad[i].name,Tadname)==0) {
+	  localplayer = false;
+	}
+	if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	  hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
+	  strcpy(hiscores[31].name,myTad[i].name);
+	  // Bubble sort
+	  for(j=31; j > 0; j--) {
+	    if(hiscores[j].time > hiscores[j-1].time) {
+	      strcpy(buf,hiscores[j-1].name);
+	      kk = hiscores[j-1].time;
+	      strcpy(hiscores[j-1].name,hiscores[j].name);
+	      hiscores[j-1].time = hiscores[j].time;
+	      strcpy(hiscores[j].name,buf);
+	      hiscores[j].time = kk;
+	    }
+	  }
+	}
 	myTad[i].kill();
 	for(kk=0; kk<MAX_PLAYERS; kk++) {
 	  if(myTad[kk].alive) {
@@ -1093,6 +1306,21 @@ int main(int argc, char* argv[]) {
       SDLNet_TCP_Send(myTad[i].socket,(void*)buf,2);
       // Close connection
       SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
+      if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
+	strcpy(hiscores[31].name,myTad[i].name);
+	// Bubble sort
+	for(j=31; j > 0; j--) {
+	  if(hiscores[j].time > hiscores[j-1].time) {
+	    strcpy(buf,hiscores[j-1].name);
+	    kk = hiscores[j-1].time;
+	    strcpy(hiscores[j-1].name,hiscores[j].name);
+	    hiscores[j-1].time = hiscores[j].time;
+	    strcpy(hiscores[j].name,buf);
+	    hiscores[j].time = kk;
+	  }
+	}
+      }
       myTad[i].kill();
       nalive--;
       ntads--;      
@@ -1111,8 +1339,22 @@ int main(int argc, char* argv[]) {
   SDLNet_FreeSocketSet(socketSet);
   // Close server socket
   SDLNet_TCP_Close(serverSocket);
-  
-  
+  // Close help socket
+  SDLNet_TCP_Close(helpSocket);
+
+
+  if((fp = fopen("hiscores.txt","w")) == NULL) {
+    printf("Can't open file: hiscores.txt\n");
+    return 1;
+  }
+
+  for(kk = 0; kk < 32; kk++) {
+    fprintf(fp,"%s\t%d\n",hiscores[kk].name,hiscores[kk].time);
+    free(hiscores[kk].name);
+  }
+
+  fclose(fp);
+
   clean_up();
   return 0;
 

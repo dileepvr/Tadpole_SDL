@@ -7,6 +7,7 @@ LIBDIR = -L/usr/lib
 COMPILERFLAGS = -Wall 
 
 CC = g++
+GCC = gcc
 CFLAGS = $(COMPILERFLAGS) $(INCLUDE)
 LIBRARIES = -lSDL -lSDL_image -lSDL_ttf -lSDL_net -lSDL_mixer -lm 
 
@@ -16,13 +17,15 @@ EXECUTABLE = tadpole
 #all: $(EXECUTABLE)
 
 
-$(EXECUTABLE): main.o 
+$(EXECUTABLE): main.o ipaddr.o
 	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(LIBDIR) $(LIBRARIES)\
-	main.o 
+	main.o ipaddr.o
 
 main.o: main.cpp
 	$(CC) -c main.cpp
 
+ipaddr.o: ipaddr.c
+	$(GCC) -c ipaddr.c
 check: tadpole
 	./tadpole
 
