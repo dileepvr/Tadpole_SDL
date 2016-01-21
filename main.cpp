@@ -5,13 +5,13 @@
 //#define LEECH_LIFE_ABOVE_10
 
 #ifdef WITH_SOUND
-#include "/usr/include/SDL/SDL_mixer.h"
+#include "SDL/SDL_mixer.h"
 #endif
 
-#include "/usr/include/SDL/SDL.h"
-#include "/usr/include/SDL/SDL_image.h"
-#include "/usr/include/SDL/SDL_ttf.h"
-#include "/usr/include/SDL/SDL_net.h"
+#include "SDL/SDL.h"
+#include "SDL/SDL_image.h"
+#include "SDL/SDL_ttf.h"
+#include "SDL/SDL_net.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -37,7 +37,7 @@ const int FRAMES_PER_SECOND = 30;
 const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 
 // Server network stuff
-const char ETHERNET_INTERFACE[] = "eth0";
+const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller

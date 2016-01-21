@@ -8,6 +8,9 @@ COMPILERFLAGS = -Wall
 
 CC = g++
 GCC = gcc
+GFLAG = -D__LINUX__
+#GFLAG = -DWIN32
+#GFLAG = -D__APPLE__
 CFLAGS = $(COMPILERFLAGS) $(INCLUDE)
 LIBRARIES = -lSDL -lSDL_image -lSDL_ttf -lSDL_net -lSDL_mixer -lm 
 
@@ -25,7 +28,7 @@ main.o: main.cpp
 	$(CC) -c main.cpp
 
 ipaddr.o: ipaddr.c
-	$(GCC) -c ipaddr.c
+	$(GCC) -c ipaddr.c $(GFLAG)
 check: tadpole
 	./tadpole
 
