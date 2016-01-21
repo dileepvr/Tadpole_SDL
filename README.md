@@ -5,6 +5,15 @@ It is written in SDL and C++.
 This is work in progress.
 The license is GPLv3. See LICENSE.txt for full text of license.
 
+
+The files ipaddr.c and ipaddr.h are slightly modified versions of
+files from a lightweight webserver project called
+File-and-Froget. They were written by Tyler Montbriand. The code is
+hosted on: http://burningsmell.org/faf/. He didn't release it under a
+license, so I hope this attribution is enough!
+
+
+
 Welcome to Tadpole_SDL.
 A game by Dileep V. Reddy.
 Network controller written in collaboration with Wes Erickson.

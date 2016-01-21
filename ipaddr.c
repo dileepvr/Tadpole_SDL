@@ -1,3 +1,10 @@
+/*
+  The files ipaddr.c and ipaddr.h are slightly modified versions of
+  files from a lightweight webserver project called File-and-Froget.
+  They were written by Tyler Montbriand. The code is hosted on:
+  http://burningsmell.org/faf/ He didn't release it under a license,
+  so I hope this attribution is enough!
+*/
 #include "ipaddr.h"
 
 #ifdef WIN32
