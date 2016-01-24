@@ -1,7 +1,7 @@
 //#define WITH_SOUND
 #define PRINT_MESSAGES
-#define SERVER_DEBUG
-//#define TADPOLE_COLLISIONS
+//#define SERVER_DEBUG
+#define TADPOLE_COLLISIONS
 //#define LEECH_LIFE_ABOVE_10
 
 #ifdef WITH_SOUND
@@ -38,7 +38,8 @@ const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 
 // Server network stuff
 //const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
-const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
+//const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
+const char ETHERNET_INTERFACE[] = "enp9s0"; 
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
@@ -120,7 +121,7 @@ Uint32 tadcolor[32];
 Uint32 transcolor;
 
 SDL_Rect leader_rect = {0, BANNER_HEIGHT, LEADER_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
-//SDL_Rect hiscore_rect = {HI_X_OFFSET, BANNER_HEIGHT, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
+SDL_Rect hiscore_rect = {0, 0, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
 SDL_Rect banner_rect = {LEADER_WIDTH, 0, SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH, BANNER_HEIGHT};
 
 class hiscore_entry {
@@ -444,7 +445,6 @@ bool draw_sidepanels() {
 
 
   SDL_FillRect(screen, &leader_rect, black_clr);
-  //  SDL_FillRect(screen, &hiscore_rect, black_clr);
   SDL_FillRect(screen, &banner_rect, black_clr);
 
   apply_surface(txtoffset, txtoffset, message1, screen, NULL);
@@ -459,6 +459,7 @@ bool draw_sidepanels() {
 
 
   if(hiscorechange) {
+    SDL_FillRect(hiscore_layer, &hiscore_rect, black_clr);
     for(int loop2 = 0; loop2 < 32; loop2++) {
       tempchar4.str(" ");
       tempchar4 << hiscores[loop2].name;
@@ -1305,6 +1306,22 @@ int main(int argc, char* argv[]) {
 
 
     if(SDL_Flip(screen) == -1) return false;
+
+
+    if(hiscorechange) {
+      if((fp = fopen("hiscores.txt","w")) == NULL) {
+	printf("Can't open file: hiscores.txt\n");
+	return 1;
+      }
+
+      for(kk = 0; kk < 32; kk++) {
+	fprintf(fp,"%s\t%d\n",hiscores[kk].name,hiscores[kk].time);
+	free(hiscores[kk].name);
+      }
+
+      fclose(fp);
+    }
+    
 
     // Wait for next frame render time
     if(fps.get_ticks() < (1000 / FRAMES_PER_SECOND)){

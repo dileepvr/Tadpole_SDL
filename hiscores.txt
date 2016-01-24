@@ -1,6 +1,8 @@
 Player_0	89
 Player_0	44
 Player_0	44
+Player_0	39
+Player_0	39
 Player_0	35
 Player_0	34
 Player_0	32
@@ -11,9 +13,12 @@ AAA	26
 AAA	25
 AAA	24
 AAA	23
+PLAYERNAME	23
 AAA	22
 AAA	21
+Player_0	21
 AAA	20
+Player_0	19
 AAA	15
 AAA	15
 AAA	15
@@ -25,8 +30,3 @@ AAA	15
 AAA	14
 AAA	13
 AAA	12
-Player_0	12
-AAA	11
-AAA	10
-AAA	9
-AAA	8
