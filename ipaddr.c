@@ -54,14 +54,15 @@ int GetIP(const char *ignore, char *ip)
 }
 
 #elif defined(__LINUX__)	/* Linux	*/
-#	include <stdio.h>
-#	include <unistd.h>
-#	include <sys/socket.h>
-#	include <sys/ioctl.h>
-#	include <net/if.h>
-#	include <net/ethernet.h>
-#	include <arpa/inet.h>
-#	include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <net/ethernet.h>
+#include <arpa/inet.h>
+#include <string.h>
+
 
 /* retrieve IP address via ioctl interface */
 int GetIP(const char *Interface, char *ip)

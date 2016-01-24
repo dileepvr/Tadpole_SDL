@@ -1,7 +1,7 @@
-#define WITH_SOUND
+//#define WITH_SOUND
 #define PRINT_MESSAGES
-//#define SERVER_DEBUG
-#define TADPOLE_COLLISIONS
+#define SERVER_DEBUG
+//#define TADPOLE_COLLISIONS
 //#define LEECH_LIFE_ABOVE_10
 
 #ifdef WITH_SOUND
@@ -27,8 +27,8 @@
 #include "tadclips.h"		// Storing sprite frames
 #include "ipaddr.h"
 
-//const int SCREEN_WIDTH = 1680; const int SCREEN_HEIGHT = 1020;
-const int SCREEN_WIDTH = 1920; const int SCREEN_HEIGHT = 1030;
+const int SCREEN_WIDTH = 1680; const int SCREEN_HEIGHT = 1020;
+//const int SCREEN_WIDTH = 1920; const int SCREEN_HEIGHT = 1030;
 
 const int MAX_NAME_LENGTH = 20;
 const int DOT_HEIGHT = 20;  		// Size of player
@@ -37,7 +37,8 @@ const int FRAMES_PER_SECOND = 30;
 const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 
 // Server network stuff
-const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
+//const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
+const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
@@ -48,7 +49,7 @@ TCPsocket serverSocket, helpSocket, clientSocket;
 SDLNet_SocketSet socketSet, clientSet;
 int receivedByteCount = 0;
 char buf[BUFFER_SIZE+1];
-bool localplayer = false, localconn = false;
+bool localplayer = false, localconn = false, hiscorechange = true;
 char serverName[] = "localhost";
 
 const int LEADER_WIDTH = (int)(0.2265625*SCREEN_WIDTH);//435;
@@ -72,7 +73,13 @@ char* reply;
 
 
 SDL_Surface *screen;
+SDL_Surface *hiscore_layer;
 SDL_Surface *message;
+SDL_Surface *message1;
+SDL_Surface *message2;
+SDL_Surface *message3;
+SDL_Surface *message4;
+SDL_Surface *message5;
 SDL_Surface *player1;
 SDL_Surface *frog;
 SDL_Surface *fly;
@@ -103,7 +110,7 @@ TTF_Font *larfont = NULL;
 TTF_Font *bigfont = NULL;
 
 // Wave tracker [wave #] [frame/flag & coordinates]
-const int NUMWAVES = 20;
+const int NUMWAVES = 10;
 int smallwaves[MAX_PLAYERS][NUMWAVES][3];
 int bigwaves[NUMWAVES][3];
 int suwaves[NUMWAVES][3];
@@ -113,7 +120,7 @@ Uint32 tadcolor[32];
 Uint32 transcolor;
 
 SDL_Rect leader_rect = {0, BANNER_HEIGHT, LEADER_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
-SDL_Rect hiscore_rect = {HI_X_OFFSET, BANNER_HEIGHT, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
+//SDL_Rect hiscore_rect = {HI_X_OFFSET, BANNER_HEIGHT, HISCORE_WIDTH, SCREEN_HEIGHT-BANNER_HEIGHT};
 SDL_Rect banner_rect = {LEADER_WIDTH, 0, SCREEN_WIDTH-LEADER_WIDTH-HISCORE_WIDTH, BANNER_HEIGHT};
 
 class hiscore_entry {
@@ -128,11 +135,13 @@ std::vector<hiscore_entry> hiscores(32);
 
 bool init() {
 
-  char *tempchar;
+  char* tempchar;
+  tempchar = (char*)malloc(16*sizeof(char));
   GetIP(ETHERNET_INTERFACE,tempchar);
   tempchar2 << "CONTROLLER HTTP:// " << tempchar << " : 3000";
   tempchar3 << "HELP TEXT HTTP:// " << tempchar << " : " << HELPPORT;  
-  
+  free(tempchar);
+
     if(SDL_Init(SDL_INIT_EVERYTHING) == -1) {
 	printf("error: SDL failed to intitialize.\n");
     	return false;
@@ -235,6 +244,7 @@ bool init() {
 
     
     screen = SDL_SetVideoMode( SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, SDL_SWSURFACE);
+    hiscore_layer = SDL_CreateRGBSurface(SDL_HWSURFACE, HISCORE_WIDTH, SCREEN_HEIGHT - BANNER_HEIGHT, SCREEN_BPP, 0, 0, 0, 0);
     if(screen == NULL) {
 	printf("error: SDL_SetVideoMode failed.\n");
     	return false;
@@ -244,6 +254,7 @@ bool init() {
 	printf("error: TTF failed to initialize.\n");
     	return false;
     }
+    
 #ifdef WITH_SOUND
     if ( Mix_OpenAudio( 22050, MIX_DEFAULT_FORMAT, 2, 1024 ) == -1){
 	printf("error: OpenAudio failed to initialize.\n");
@@ -347,6 +358,12 @@ bool load_files() {
     return false;
   }
 
+  message1 = TTF_RenderText_Solid(bigfont, "Leader Board", redcolor);  
+  message2 = TTF_RenderText_Solid(bigfont, "Hi-Scores", redcolor);
+  message3 = TTF_RenderText_Solid(bigfont, "TO JOIN GAME:", redcolor);
+  message4 = TTF_RenderText_Solid(regfont, tempchar2.str().c_str(), redcolor);
+  message5 = TTF_RenderText_Solid(regfont, tempchar3.str().c_str(), redcolor);  
+
 #ifdef WITH_SOUND
 
   ambience = Mix_LoadMUS("audio/Rainfall_short.ogg");
@@ -376,7 +393,13 @@ void clean_up() {
   free(reply);
 
   SDL_FreeSurface(screen);
-  SDL_FreeSurface(message);
+  SDL_FreeSurface(hiscore_layer);
+  SDL_FreeSurface(message);  
+  SDL_FreeSurface(message1);
+  SDL_FreeSurface(message2);
+  SDL_FreeSurface(message3);
+  SDL_FreeSurface(message4);
+  SDL_FreeSurface(message5);  
   SDL_FreeSurface(player1);
   SDL_FreeSurface(frog);
   SDL_FreeSurface(fly);
@@ -421,39 +444,40 @@ bool draw_sidepanels() {
 
 
   SDL_FillRect(screen, &leader_rect, black_clr);
-  SDL_FillRect(screen, &hiscore_rect, black_clr);
+  //  SDL_FillRect(screen, &hiscore_rect, black_clr);
   SDL_FillRect(screen, &banner_rect, black_clr);
 
-  message = TTF_RenderText_Solid(bigfont, "Leader Board", redcolor);
-  apply_surface(txtoffset, txtoffset, message, screen, NULL);
+  apply_surface(txtoffset, txtoffset, message1, screen, NULL);
 
-  message = TTF_RenderText_Solid(bigfont, "Hi-Scores", redcolor);
-  apply_surface(HI_X_OFFSET+4*txtoffset, txtoffset, message, screen, NULL);
+  apply_surface(HI_X_OFFSET+4*txtoffset, txtoffset, message2, screen, NULL);
 
+  apply_surface(LEADER_WIDTH+(int)(txtoffset/2), txtoffset, message3, screen, NULL);
 
-  message = TTF_RenderText_Solid(bigfont, "TO JOIN GAME:", redcolor);
-  apply_surface(LEADER_WIDTH+(int)(txtoffset/2), txtoffset, message, screen, NULL);
+  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(0.75*txtoffset), message4, screen, NULL);
 
-  message = TTF_RenderText_Solid(regfont, tempchar2.str().c_str(), redcolor);
-  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(0.75*txtoffset), message, screen, NULL);
+  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(3*0.75*txtoffset), message5, screen, NULL);
 
 
-  message = TTF_RenderText_Solid(regfont, tempchar3.str().c_str(), redcolor);
-  apply_surface(LEADER_WIDTH+23*txtoffset, (int)(3*0.75*txtoffset), message, screen, NULL);
-
-  for(int loop2 = 0; loop2 < 32; loop2++) {
-    tempchar4.str(" ");
-    tempchar4 << hiscores[loop2].name;
-    message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
-    apply_surface(HI_X_OFFSET+20, BANNER_HEIGHT+10+loop2*30, message, screen, NULL);
-    tempchar4.str(" ");
-    char temp[4];
-    sprintf(temp,"%4d",hiscores[loop2].time);
-    tempchar4 << temp;
-    message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
-    apply_surface(SCREEN_WIDTH-70, BANNER_HEIGHT+10+loop2*30, message, screen, NULL);    
+  if(hiscorechange) {
+    for(int loop2 = 0; loop2 < 32; loop2++) {
+      tempchar4.str(" ");
+      tempchar4 << hiscores[loop2].name;
+      message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+      apply_surface(20, 10+loop2*30, message, hiscore_layer, NULL);    
+      tempchar4.str(" ");
+      char temp[4];
+      sprintf(temp,"%4d",hiscores[loop2].time);
+      tempchar4 << temp;
+      message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+      apply_surface(HISCORE_WIDTH-70, 10+loop2*30, message, hiscore_layer, NULL);    
+    }
+    hiscorechange = false;
   }
+
+  apply_surface(HI_X_OFFSET,BANNER_HEIGHT,hiscore_layer, screen, NULL);
+
   
+
   return true;
   
 }
@@ -494,7 +518,7 @@ int main(int argc, char* argv[]) {
 
   // Close hiscores.txt
   fclose(fp);
-  /*
+
   // Bubble sort
   for(i=0; i<31; i++) {
     for(j=31; j > i; j--) {
@@ -508,7 +532,7 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  */
+
   
 #ifdef TADPOLE_COLLISIONS  
 
@@ -717,6 +741,7 @@ int main(int argc, char* argv[]) {
 	      localplayer = false;
 	    }
 	    if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	      hiscorechange = true;
 	      hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
 	      strcpy(hiscores[31].name,myTad[i].name);
 	      // Bubble sort
@@ -788,6 +813,7 @@ int main(int argc, char* argv[]) {
 		      localplayer = false;
 		    }
 		    if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+		      hiscorechange = true;
 		      hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
 		      strcpy(hiscores[31].name,myTad[i].name);
 		      // Bubble sort
@@ -1210,6 +1236,7 @@ int main(int argc, char* argv[]) {
 	  localplayer = false;
 	}
 	if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	  hiscorechange = true;
 	  hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
 	  strcpy(hiscores[31].name,myTad[i].name);
 	  // Bubble sort
@@ -1307,6 +1334,7 @@ int main(int argc, char* argv[]) {
       // Close connection
       SDLNet_TCP_DelSocket(socketSet, myTad[i].socket);
       if(hiscores[31].time <= (int)(myTad[i].age_clock.get_ticks()/1000)) {
+	hiscorechange = true;	
 	hiscores[31].time = (int)(myTad[i].age_clock.get_ticks()/1000);
 	strcpy(hiscores[31].name,myTad[i].name);
 	// Bubble sort
