@@ -39,7 +39,8 @@ const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
 // Server network stuff
 //const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
 //const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
-const char ETHERNET_INTERFACE[] = "enp9s0"; 
+//const char ETHERNET_INTERFACE[] = "enp9s0";
+const char ETHERNET_INTERFACE[] = "enp0s10"; 
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
@@ -210,7 +211,7 @@ bool init() {
     sprintf(reply,"HTTP/1.1 200 OK\n"
 "ETag: \"56d-9989200-1132c580\"\n"
 "Content-Type: text/html\n"
-"Content-Length: 1475\n"
+"Content-Length: 1451\n"
 "Accept-Ranges: bytes\n"
 "Connection: close\n"
 "\n"
