@@ -1,6 +1,6 @@
-//#define WITH_SOUND
+#define WITH_SOUND
 #define PRINT_MESSAGES
-//#define SERVER_DEBUG
+##define SERVER_DEBUG
 #define TADPOLE_COLLISIONS
 //#define LEECH_LIFE_ABOVE_10
 
@@ -27,24 +27,25 @@
 #include "tadclips.h"		// Storing sprite frames
 #include "ipaddr.h"
 
-const int SCREEN_WIDTH = 1680; const int SCREEN_HEIGHT = 1020;
+//const int SCREEN_WIDTH = 1680; const int SCREEN_HEIGHT = 1020;
+const int SCREEN_WIDTH = 1024; const int SCREEN_HEIGHT = 740;
 //const int SCREEN_WIDTH = 1920; const int SCREEN_HEIGHT = 1030;
 
-const int MAX_NAME_LENGTH = 20;
+const int MAX_NAME_LENGTH = 256;
 const int DOT_HEIGHT = 20;  		// Size of player
 const int DOT_WIDTH = 20;
 const int FRAMES_PER_SECOND = 30;
-const int MAX_PLAYERS = 3;        // Maximum number of concurrrent players
+const int MAX_PLAYERS = 32;        // Maximum number of concurrrent players
 
 // Server network stuff
 //const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
-//const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
+const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
 //const char ETHERNET_INTERFACE[] = "enp9s0";
-const char ETHERNET_INTERFACE[] = "enp0s10"; 
+//const char ETHERNET_INTERFACE[] = "enp0s10"; 
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
-const Uint16 BUFFER_SIZE = 64;
+const Uint16 BUFFER_SIZE = 255;
 IPaddress serverIP, servIP, *remoteip;
 Uint32 ipaddr;
 TCPsocket serverSocket, helpSocket, clientSocket;
@@ -117,7 +118,7 @@ int smallwaves[MAX_PLAYERS][NUMWAVES][3];
 int bigwaves[NUMWAVES][3];
 int suwaves[NUMWAVES][3];
 
-const SDL_Color redcolor = {0xFF, 0, 0};
+const SDL_Color redcolor = {0xFF, 0x44, 0x44};
 Uint32 tadcolor[32];
 Uint32 transcolor;
 
@@ -237,7 +238,7 @@ bool init() {
 "7. To kill Tadpole, send 'K'. Server replies with 'D'.\n\n"
 "8. Everytime Tadpole hitpoints change, server sends \"HXX\", where \"XX\" encodes current hitpoint count.\n\n"
 "9. Server sends 'D' and closes connection when Tadpole dies.\n\n"
-"10. Server sends 'C' and closes connection when shutting down.",tempchar,JAVAPORT,PORT,tempchar,PORT);
+"10. Server sends 'C' and closes connection when shutting down.\n",tempchar,JAVAPORT,PORT,tempchar,PORT);
 
     
     screen = SDL_SetVideoMode( SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, SDL_SWSURFACE);
@@ -345,7 +346,8 @@ bool load_files() {
     return false;
   }
 
-  font = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.00885*SCREEN_WIDTH));//17
+  //  font = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.00885*SCREEN_WIDTH));//17
+  font = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.02*SCREEN_WIDTH));//17  
   regfont = TTF_OpenFont( "fonts/CARLETON.TTF", (int)(0.013*SCREEN_WIDTH));//25
   larfont = TTF_OpenFont( "fonts/STEVE.TTF", (int)(0.8*0.026*SCREEN_WIDTH));//40  
   bigfont = TTF_OpenFont( "fonts/STEVE.TTF", (int)(0.026*SCREEN_WIDTH));//50
@@ -459,13 +461,13 @@ bool draw_sidepanels() {
     for(int loop2 = 0; loop2 < 32; loop2++) {
       tempchar4.str(" ");
       tempchar4 << hiscores[loop2].name;
-      message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+      message = TTF_RenderText_Solid(font, tempchar4.str().c_str(), redcolor);
       apply_surface(20, 10+loop2*30, message, hiscore_layer, NULL);    
       tempchar4.str(" ");
       char temp[4];
       sprintf(temp,"%4d",hiscores[loop2].time);
       tempchar4 << temp;
-      message = TTF_RenderText_Solid(regfont, tempchar4.str().c_str(), redcolor);
+      message = TTF_RenderText_Solid(font, tempchar4.str().c_str(), redcolor);
       apply_surface(HISCORE_WIDTH-70, 10+loop2*30, message, hiscore_layer, NULL);    
     }
     hiscorechange = false;
@@ -488,8 +490,8 @@ int main(int argc, char* argv[]) {
   bool running = true;
   int i, j, xfrog, yfrog, xfly, yfly, leech[MAX_PLAYERS], tadswim = 0, swavenum[MAX_PLAYERS], swave_clk[MAX_PLAYERS], cls, kk;
   float dist;
-  int nfrogs = 10; // Number of frogs
-  int sp = 2;    // Speed (1-3)
+  int nfrogs = 7; // Number of frogs
+  int sp = 1;    // Speed (1-3)
   int a_i = 3;  // AI (1-3)
   FILE *fp;
 
@@ -775,8 +777,10 @@ int main(int argc, char* argv[]) {
 	    if(buf[0]!='\n') {
 	    
 	      if(myTad[i].TCP_limbo) {
-		buf[MAX_NAME_LENGTH] = '\0';
-		for(kk=0;kk<MAX_NAME_LENGTH; kk++) {
+		//		buf[MAX_NAME_LENGTH] = '\0';
+		buf[10] = '\0';
+		//		for(kk=0;kk<MAX_NAME_LENGTH; kk++) {
+		for(kk=0;kk<10; kk++) {
 		  if((buf[kk] == ' ')||(buf[kk] == '\t')) {
 		    buf[kk] = '_';
 		  }

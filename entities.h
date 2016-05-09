@@ -166,7 +166,8 @@ Tadpole::Tadpole()
 void Tadpole::spawn(char* playername, int tadnum)
 {
 
-  name = (char *)malloc(sizeof(playername));
+  //  name = (char *)malloc(sizeof(playername));
+  name = (char *)malloc(strlen(playername));
   strcpy(name, playername);
 
   boardname = TTF_RenderText_Solid(regfont,name,redcolor);
