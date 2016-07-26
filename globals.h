@@ -1,3 +1,8 @@
+/*
+This software has been released under the
+GPLv3 license. See LICENSE.txt for full text of license.
+All future versions of the GPL license automatically apply.
+*/
 int SCREEN_WIDTH = 1920;//800;
 int SCREEN_HEIGHT = 1050;//600;
 int LEADER_WIDTH = 435;

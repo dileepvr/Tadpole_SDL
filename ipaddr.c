@@ -1,4 +1,9 @@
 /*
+This software has been released under the
+GPLv3 license. See LICENSE.txt for full text of license.
+All future versions of the GPL license automatically apply.
+*/
+/*
   The files ipaddr.c and ipaddr.h are slightly modified versions of
   files from a lightweight webserver project called File-and-Froget.
   They were written by Tyler Montbriand. The code is hosted on:

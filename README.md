@@ -2,8 +2,9 @@ Tadpole is a persistent server casual game meant for projection on a big screen 
 
 It is written in SDL and C++.
 
-This is work in progress.
-The license is GPLv3. See LICENSE.txt for full text of license.
+This is work in progress. This software has been released under the
+GPLv3 license. See LICENSE.txt for full text of license.
+All future versions of the GPL license automatically apply.
 
 
 The files ipaddr.c and ipaddr.h are slightly modified versions of
