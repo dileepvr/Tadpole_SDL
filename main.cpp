@@ -5,7 +5,7 @@ All future versions of the GPL license automatically apply.
 */
 #define WITH_SOUND
 #define PRINT_MESSAGES
-##define SERVER_DEBUG
+#define SERVER_DEBUG
 #define TADPOLE_COLLISIONS
 //#define LEECH_LIFE_ABOVE_10
 
@@ -44,9 +44,9 @@ const int MAX_PLAYERS = 32;        // Maximum number of concurrrent players
 
 // Server network stuff
 //const char ETHERNET_INTERFACE[] = "eth0"; // Use "en0" for OSX
-const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
+//const char ETHERNET_INTERFACE[] = "wlp12s0"; // "wlan0"
 //const char ETHERNET_INTERFACE[] = "enp9s0";
-//const char ETHERNET_INTERFACE[] = "enp0s10"; 
+const char ETHERNET_INTERFACE[] = "enp0s10"; 
 const Uint16 PORT = 13370;         // Port to listen on for tcp
 const Uint16 HELPPORT = 13371;         // Help port
 const Uint16 JAVAPORT = 3000;   // Wes's Javascript node.js controller
