@@ -1,8 +1,7 @@
-/*
-This software has been released under the
-GPLv3 license. See LICENSE.txt for full text of license.
-All future versions of the GPL license automatically apply.
-*/
+# This software has been released under the
+# GPLv3 license. See LICENSE.txt for full text of license.
+# All future versions of the GPL license automatically apply.
+
 INCLUDE = -I/usr/include/
 
 #LIBDIR  = -L/usr/X11R6/lib 
