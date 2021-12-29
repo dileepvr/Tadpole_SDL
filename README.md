@@ -1,5 +1,8 @@
 Tadpole is a persistent server casual game meant for projection on a big screen in a live environment. Players connect to it via TCP to spawn players. There is a live live leader board and hi-score board.
 
+Screen recording (mute):  https://www.youtube.com/watch?v=WrZMrjpVtzY
+Field deployed: https://www.youtube.com/watch?v=ctRMMRXPL_Y
+
 It is written in SDL and C++.
 
 This is work in progress. This software has been released under the
